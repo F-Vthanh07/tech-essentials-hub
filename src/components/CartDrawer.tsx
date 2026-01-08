@@ -1,4 +1,5 @@
 import { Minus, Plus, X, Trash2, Tag } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,9 +31,20 @@ const CartDrawer = ({
   onUpdateQuantity,
   onRemoveItem,
 }: CartDrawerProps) => {
+  const navigate = useNavigate();
   const [promoCode, setPromoCode] = useState("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState("");
+
+  const handleCheckout = () => {
+    onClose();
+    navigate("/checkout", {
+      state: {
+        cartItems: items,
+        discount: appliedDiscount?.discount || 0,
+      },
+    });
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -215,7 +227,7 @@ const CartDrawer = ({
 
             {/* Checkout */}
             <div className="pt-4 space-y-2">
-              <Button variant="brand" size="lg" className="w-full">
+              <Button variant="brand" size="lg" className="w-full" onClick={handleCheckout}>
                 Thanh toán
               </Button>
               <Button variant="outline" className="w-full" onClick={onClose}>
