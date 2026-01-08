@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Search, ShoppingCart, User, Menu, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ const Header = ({ cartCount, onCartClick }: HeaderProps) => {
           <div className="flex items-center gap-4">
             <span>Hotline: <strong>1900 1234</strong></span>
             <span className="hidden md:inline">|</span>
-            <span className="hidden md:inline">Theo dõi đơn hàng</span>
+            <Link to="/orders" className="hidden md:inline hover:underline">Theo dõi đơn hàng</Link>
           </div>
         </div>
       </div>
