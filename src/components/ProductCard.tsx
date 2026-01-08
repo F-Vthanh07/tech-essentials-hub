@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Eye, ShoppingCart, Star, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,9 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
   };
 
   return (
-    <div
-      className="group relative bg-card rounded-xl overflow-hidden card-shadow hover:card-shadow-hover transition-all duration-300"
+    <Link
+      to={`/product/${product.id}`}
+      className="group relative bg-card rounded-xl overflow-hidden card-shadow hover:card-shadow-hover transition-all duration-300 block"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -42,7 +44,10 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
 
       {/* Wishlist button */}
       <button
-        onClick={() => setIsWishlisted(!isWishlisted)}
+        onClick={(e) => {
+          e.preventDefault();
+          setIsWishlisted(!isWishlisted);
+        }}
         className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-background transition-colors"
       >
         <Heart
@@ -71,7 +76,10 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
               variant="quick-view"
               size="sm"
               className="flex-1"
-              onClick={() => onQuickView(product)}
+              onClick={(e) => {
+                e.preventDefault();
+                onQuickView(product);
+              }}
             >
               <Eye className="w-4 h-4 mr-1" />
               Xem nhanh
@@ -80,7 +88,10 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
               variant="brand"
               size="sm"
               className="flex-1"
-              onClick={() => onAddToCart(product)}
+              onClick={(e) => {
+                e.preventDefault();
+                onAddToCart(product);
+              }}
             >
               <ShoppingCart className="w-4 h-4 mr-1" />
               Thêm
@@ -133,7 +144,7 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
