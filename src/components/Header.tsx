@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, ShoppingCart, User, Menu, X, ChevronDown } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Search, ShoppingCart, User, Menu, X, ChevronDown, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,18 +8,31 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { categories } from "@/data/products";
+import { useAuth } from "@/contexts/AuthContext";
+import AuthModal from "@/components/AuthModal";
+import { MEMBERSHIP_LEVELS } from "@/types/user";
+import { toast } from "sonner";
 
 interface HeaderProps {
-  cartCount: number;
-  onCartClick: () => void;
+  cartCount?: number;
+  onCartClick?: () => void;
 }
 
-const Header = ({ cartCount, onCartClick }: HeaderProps) => {
+const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Đã đăng xuất');
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
@@ -76,9 +89,39 @@ const Header = ({ cartCount, onCartClick }: HeaderProps) => {
               )}
             </Button>
 
-            <Button variant="ghost" size="icon" className="hidden md:flex">
-              <User className="w-5 h-5" />
-            </Button>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="hidden md:flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full ${MEMBERSHIP_LEVELS[user.membershipLevel].color} flex items-center justify-center`}>
+                      <Crown className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-sm">{user.name.split(' ')[0]}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {user.points} điểm
+                    </Badge>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
+                    Tài khoản
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/orders')} className="cursor-pointer">
+                    Đơn hàng của tôi
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Đăng xuất
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setAuthModalOpen(true)}>
+                <User className="w-5 h-5" />
+              </Button>
+            )}
 
             <Button
               variant="ghost"
@@ -171,6 +214,8 @@ const Header = ({ cartCount, onCartClick }: HeaderProps) => {
           </div>
         </div>
       )}
+
+      <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
     </header>
   );
 };
