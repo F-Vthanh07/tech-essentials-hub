@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { MEMBERSHIP_LEVELS } from '@/types/user';
 import { toast } from 'sonner';
+import { SavedAddress } from '@/types/user';
 import { 
   User, 
   Crown, 
@@ -22,8 +23,20 @@ import {
   Settings, 
   LogOut,
   Award,
-  ShoppingBag
+  ShoppingBag,
+  MapPin,
+  Plus,
+  Pencil,
+  Trash2,
+  Check
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +44,20 @@ const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState(user?.phone || '');
+  
+  // Address management state
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
+  const [addressForm, setAddressForm] = useState<Omit<SavedAddress, 'id'>>({
+    fullName: '',
+    phone: '',
+    email: '',
+    province: '',
+    district: '',
+    ward: '',
+    address: '',
+    isDefault: false,
+  });
 
   if (!user) {
     navigate('/');
@@ -74,6 +101,97 @@ const Profile: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const resetAddressForm = () => {
+    setAddressForm({
+      fullName: user?.name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+      province: '',
+      district: '',
+      ward: '',
+      address: '',
+      isDefault: false,
+    });
+    setEditingAddress(null);
+  };
+
+  const handleOpenAddAddress = () => {
+    resetAddressForm();
+    setIsAddressDialogOpen(true);
+  };
+
+  const handleOpenEditAddress = (address: SavedAddress) => {
+    setEditingAddress(address);
+    setAddressForm({
+      fullName: address.fullName,
+      phone: address.phone,
+      email: address.email || '',
+      province: address.province,
+      district: address.district,
+      ward: address.ward || '',
+      address: address.address,
+      isDefault: address.isDefault || false,
+    });
+    setIsAddressDialogOpen(true);
+  };
+
+  const handleSaveAddress = () => {
+    if (!addressForm.fullName || !addressForm.phone || !addressForm.province || !addressForm.district || !addressForm.address) {
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
+
+    const savedAddresses = user?.savedAddresses || [];
+    
+    if (editingAddress) {
+      // Update existing address
+      const updatedAddresses = savedAddresses.map(addr => {
+        if (addr.id === editingAddress.id) {
+          return { ...addressForm, id: addr.id };
+        }
+        // If new address is default, remove default from others
+        if (addressForm.isDefault && addr.isDefault) {
+          return { ...addr, isDefault: false };
+        }
+        return addr;
+      });
+      updateUser({ savedAddresses: updatedAddresses });
+      toast.success('Cập nhật địa chỉ thành công!');
+    } else {
+      // Add new address
+      const newAddress: SavedAddress = {
+        ...addressForm,
+        id: Date.now().toString(),
+      };
+      
+      // If new address is default, remove default from others
+      const updatedAddresses = addressForm.isDefault 
+        ? savedAddresses.map(addr => ({ ...addr, isDefault: false }))
+        : savedAddresses;
+      
+      updateUser({ savedAddresses: [...updatedAddresses, newAddress] });
+      toast.success('Thêm địa chỉ mới thành công!');
+    }
+    
+    setIsAddressDialogOpen(false);
+    resetAddressForm();
+  };
+
+  const handleDeleteAddress = (addressId: string) => {
+    const updatedAddresses = (user?.savedAddresses || []).filter(addr => addr.id !== addressId);
+    updateUser({ savedAddresses: updatedAddresses });
+    toast.success('Đã xóa địa chỉ');
+  };
+
+  const handleSetDefaultAddress = (addressId: string) => {
+    const updatedAddresses = (user?.savedAddresses || []).map(addr => ({
+      ...addr,
+      isDefault: addr.id === addressId,
+    }));
+    updateUser({ savedAddresses: updatedAddresses });
+    toast.success('Đã đặt làm địa chỉ mặc định');
   };
 
   return (
@@ -168,18 +286,26 @@ const Profile: React.FC = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="history" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="history" className="flex items-center gap-2">
                 <History className="w-4 h-4" />
-                Lịch sử điểm
+                <span className="hidden sm:inline">Lịch sử điểm</span>
+                <span className="sm:hidden">Điểm</span>
+              </TabsTrigger>
+              <TabsTrigger value="addresses" className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                <span className="hidden sm:inline">Địa chỉ</span>
+                <span className="sm:hidden">Địa chỉ</span>
               </TabsTrigger>
               <TabsTrigger value="levels" className="flex items-center gap-2">
                 <Award className="w-4 h-4" />
-                Hạng thành viên
+                <span className="hidden sm:inline">Hạng thành viên</span>
+                <span className="sm:hidden">Hạng</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="w-4 h-4" />
-                Cài đặt
+                <span className="hidden sm:inline">Cài đặt</span>
+                <span className="sm:hidden">Cài đặt</span>
               </TabsTrigger>
             </TabsList>
 
@@ -216,6 +342,89 @@ const Profile: React.FC = () => {
                           <Badge variant={item.type === 'earn' ? 'default' : 'destructive'}>
                             {item.type === 'earn' ? '+' : '-'}{item.amount} điểm
                           </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="addresses" className="mt-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Địa chỉ giao hàng
+                  </CardTitle>
+                  <Button onClick={handleOpenAddAddress} size="sm" className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    Thêm địa chỉ
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {(!user?.savedAddresses || user.savedAddresses.length === 0) ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Chưa có địa chỉ nào được lưu</p>
+                      <p className="text-sm">Thêm địa chỉ để thuận tiện khi đặt hàng!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {user.savedAddresses.map((address) => (
+                        <div 
+                          key={address.id} 
+                          className={`p-4 rounded-lg border-2 ${
+                            address.isDefault ? 'border-primary bg-primary/5' : 'border-border'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold">{address.fullName}</p>
+                                {address.isDefault && (
+                                  <Badge variant="secondary" className="text-xs">Mặc định</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{address.phone}</p>
+                              {address.email && (
+                                <p className="text-sm text-muted-foreground">{address.email}</p>
+                              )}
+                              <p className="text-sm mt-2">
+                                {address.address}, {address.ward && `${address.ward}, `}{address.district}, {address.province}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {!address.isDefault && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleSetDefaultAddress(address.id)}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span className="hidden sm:inline">Đặt mặc định</span>
+                                </Button>
+                              )}
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleOpenEditAddress(address)}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleDeleteAddress(address.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -340,6 +549,94 @@ const Profile: React.FC = () => {
       </main>
 
       <Footer />
+
+      {/* Address Dialog */}
+      <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingAddress ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Họ và tên *</Label>
+              <Input 
+                value={addressForm.fullName}
+                onChange={(e) => setAddressForm({ ...addressForm, fullName: e.target.value })}
+                placeholder="Nguyễn Văn A"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Số điện thoại *</Label>
+              <Input 
+                value={addressForm.phone}
+                onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                placeholder="0901234567"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input 
+                type="email"
+                value={addressForm.email}
+                onChange={(e) => setAddressForm({ ...addressForm, email: e.target.value })}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tỉnh/Thành phố *</Label>
+              <Input 
+                value={addressForm.province}
+                onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })}
+                placeholder="TP. Hồ Chí Minh"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Quận/Huyện *</Label>
+              <Input 
+                value={addressForm.district}
+                onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
+                placeholder="Quận 1"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phường/Xã</Label>
+              <Input 
+                value={addressForm.ward}
+                onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                placeholder="Phường Bến Nghé"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Địa chỉ chi tiết *</Label>
+              <Input 
+                value={addressForm.address}
+                onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
+                placeholder="Số nhà, tên đường..."
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isDefault"
+                checked={addressForm.isDefault}
+                onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                className="rounded border-border"
+              />
+              <Label htmlFor="isDefault" className="cursor-pointer">Đặt làm địa chỉ mặc định</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddressDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleSaveAddress}>
+              {editingAddress ? 'Cập nhật' : 'Thêm địa chỉ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
