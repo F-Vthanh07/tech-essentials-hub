@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, PointsHistory, MEMBERSHIP_LEVELS, POINTS_PER_VND } from '@/types/user';
+import { User, PointsHistory, SavedAddress, MEMBERSHIP_LEVELS, POINTS_PER_VND } from '@/types/user';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +11,9 @@ interface AuthContextType {
   addPoints: (amount: number, description: string, orderId?: string) => void;
   spendPoints: (amount: number, description: string) => boolean;
   getPointsHistory: () => PointsHistory[];
+  saveAddress: (address: Omit<SavedAddress, 'id'>) => void;
+  deleteAddress: (addressId: string) => void;
+  getSavedAddresses: () => SavedAddress[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -191,6 +194,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return history.filter((h: PointsHistory) => h.userId === user.id);
   };
 
+  const saveAddress = (address: Omit<SavedAddress, 'id'>) => {
+    if (!user) return;
+    
+    const newAddress: SavedAddress = {
+      ...address,
+      id: `addr_${Date.now()}`,
+    };
+    
+    const currentAddresses = user.savedAddresses || [];
+    
+    // If this is set as default, remove default from others
+    let updatedAddresses = currentAddresses;
+    if (address.isDefault) {
+      updatedAddresses = currentAddresses.map(addr => ({ ...addr, isDefault: false }));
+    }
+    
+    // If no addresses exist, make this one default
+    if (updatedAddresses.length === 0) {
+      newAddress.isDefault = true;
+    }
+    
+    updatedAddresses.push(newAddress);
+    
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    saveUser(updatedUser);
+  };
+
+  const deleteAddress = (addressId: string) => {
+    if (!user) return;
+    
+    const currentAddresses = user.savedAddresses || [];
+    const updatedAddresses = currentAddresses.filter(addr => addr.id !== addressId);
+    
+    // If deleted address was default, make first one default
+    if (updatedAddresses.length > 0 && !updatedAddresses.some(addr => addr.isDefault)) {
+      updatedAddresses[0].isDefault = true;
+    }
+    
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    saveUser(updatedUser);
+  };
+
+  const getSavedAddresses = (): SavedAddress[] => {
+    return user?.savedAddresses || [];
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -203,6 +252,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         addPoints,
         spendPoints,
         getPointsHistory,
+        saveAddress,
+        deleteAddress,
+        getSavedAddresses,
       }}
     >
       {children}
