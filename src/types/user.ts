@@ -1,3 +1,15 @@
+export interface SavedAddress {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string;
+  province: string;
+  district: string;
+  ward?: string;
+  address: string;
+  isDefault?: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -8,6 +20,7 @@ export interface User {
   membershipLevel: 'bronze' | 'silver' | 'gold' | 'platinum';
   totalSpent: number;
   createdAt: string;
+  savedAddresses?: SavedAddress[];
 }
 
 export interface PointsHistory {

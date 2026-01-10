@@ -1,8 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ArrowLeft, CreditCard, Wallet, Building2, Truck, Clock, Calendar, FileText, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
-import { vi } from "date-fns/locale";
+import { ArrowLeft, CreditCard, Wallet, Building2, Truck, FileText, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Product } from "@/types/product";
+import { useAuth } from "@/contexts/AuthContext";
+import { SavedAddress } from "@/types/user";
 
 interface CartItem extends Product {
   quantity: number;
@@ -29,12 +27,6 @@ const paymentMethods = [
   { id: "vnpay", name: "VNPay", icon: "credit", description: "Thanh toán qua cổng VNPay" },
 ];
 
-const deliveryTimeSlots = [
-  { id: "morning", label: "Buổi sáng", time: "8:00 - 12:00" },
-  { id: "afternoon", label: "Buổi chiều", time: "13:00 - 17:00" },
-  { id: "evening", label: "Buổi tối", time: "18:00 - 21:00" },
-];
-
 const provinces = [
   "Hà Nội", "TP. Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ", "An Giang", "Bà Rịa - Vũng Tàu", "Bắc Giang", "Bắc Kạn", "Bạc Liêu"
 ];
@@ -42,6 +34,7 @@ const provinces = [
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, saveAddress, deleteAddress, getSavedAddresses } = useAuth();
   const cartItems: CartItem[] = location.state?.cartItems || [];
   const appliedDiscount = location.state?.discount || 0;
 
@@ -55,8 +48,6 @@ const Checkout = () => {
     address: "",
     note: "",
   });
-  const [deliveryDate, setDeliveryDate] = useState<Date | undefined>();
-  const [deliveryTime, setDeliveryTime] = useState("morning");
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [isCompanyInvoice, setIsCompanyInvoice] = useState(false);
   const [companyInfo, setCompanyInfo] = useState({
@@ -65,6 +56,34 @@ const Checkout = () => {
     companyAddress: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveThisAddress, setSaveThisAddress] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  const savedAddresses = getSavedAddresses();
+
+  // Load default address when component mounts
+  useEffect(() => {
+    if (user && savedAddresses.length > 0) {
+      const defaultAddress = savedAddresses.find(addr => addr.isDefault) || savedAddresses[0];
+      if (defaultAddress) {
+        loadAddress(defaultAddress);
+        setSelectedAddressId(defaultAddress.id);
+      }
+    }
+  }, [user]);
+
+  const loadAddress = (address: SavedAddress) => {
+    setFormData({
+      fullName: address.fullName,
+      phone: address.phone,
+      email: address.email || "",
+      province: address.province,
+      district: address.district,
+      ward: address.ward || "",
+      address: address.address,
+      note: "",
+    });
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -92,14 +111,24 @@ const Checkout = () => {
       return;
     }
 
-    if (!deliveryDate) {
-      toast.error("Vui lòng chọn ngày giao hàng");
-      return;
-    }
-
     if (isCompanyInvoice && (!companyInfo.companyName || !companyInfo.companyTaxCode)) {
       toast.error("Vui lòng điền đầy đủ thông tin xuất hóa đơn");
       return;
+    }
+
+    // Save address if user is logged in and wants to save
+    if (user && saveThisAddress) {
+      saveAddress({
+        fullName: formData.fullName,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        province: formData.province,
+        district: formData.district,
+        ward: formData.ward || undefined,
+        address: formData.address,
+        isDefault: savedAddresses.length === 0,
+      });
+      toast.success("Đã lưu địa chỉ giao hàng");
     }
 
     setIsSubmitting(true);
@@ -109,6 +138,30 @@ const Checkout = () => {
       toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
       navigate("/");
     }, 1500);
+  };
+
+  const handleSelectAddress = (address: SavedAddress) => {
+    loadAddress(address);
+    setSelectedAddressId(address.id);
+    setSaveThisAddress(false);
+  };
+
+  const handleDeleteAddress = (addressId: string) => {
+    deleteAddress(addressId);
+    if (selectedAddressId === addressId) {
+      setSelectedAddressId(null);
+      setFormData({
+        fullName: "",
+        phone: "",
+        email: "",
+        province: "",
+        district: "",
+        ward: "",
+        address: "",
+        note: "",
+      });
+    }
+    toast.success("Đã xóa địa chỉ");
   };
 
   const getPaymentIcon = (iconType: string) => {
@@ -166,11 +219,62 @@ const Checkout = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Forms */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Saved Addresses */}
+            {user && savedAddresses.length > 0 && (
+              <div className="bg-card rounded-xl p-6 border border-border">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-primary" />
+                  Địa chỉ đã lưu
+                </h2>
+                <div className="space-y-3">
+                  {savedAddresses.map((address) => (
+                    <div
+                      key={address.id}
+                      className={cn(
+                        "flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all",
+                        selectedAddressId === address.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}
+                      onClick={() => handleSelectAddress(address)}
+                    >
+                      <RadioGroupItem
+                        value={address.id}
+                        checked={selectedAddressId === address.id}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{address.fullName}</span>
+                          {address.isDefault && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Mặc định</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{address.phone}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {address.address}, {address.ward && `${address.ward}, `}{address.district}, {address.province}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAddress(address.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Shipping Information */}
             <div className="bg-card rounded-xl p-6 border border-border">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-primary" />
-                Thông tin giao hàng
+                {savedAddresses.length > 0 ? "Hoặc nhập địa chỉ mới" : "Thông tin giao hàng"}
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -255,58 +359,22 @@ const Checkout = () => {
               </div>
             </div>
 
-            {/* Delivery Time */}
-            <div className="bg-card rounded-xl p-6 border border-border">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                Thời gian giao hàng
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Chọn ngày giao hàng *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !deliveryDate && "text-muted-foreground"
-                        )}
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {deliveryDate ? format(deliveryDate, "dd/MM/yyyy", { locale: vi }) : "Chọn ngày"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={deliveryDate}
-                        onSelect={setDeliveryDate}
-                        disabled={(date) => date < new Date() || date > new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Chọn khung giờ</Label>
-                  <RadioGroup value={deliveryTime} onValueChange={setDeliveryTime} className="space-y-2">
-                    {deliveryTimeSlots.map((slot) => (
-                      <div key={slot.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:border-primary transition-colors cursor-pointer">
-                        <RadioGroupItem value={slot.id} id={slot.id} />
-                        <Label htmlFor={slot.id} className="flex-1 cursor-pointer">
-                          <span className="font-medium">{slot.label}</span>
-                          <span className="text-muted-foreground ml-2">({slot.time})</span>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
+            {/* Save Address Option */}
+            {user && (
+              <div className="bg-card rounded-xl p-6 border border-border">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="saveAddress"
+                    checked={saveThisAddress}
+                    onCheckedChange={(checked) => setSaveThisAddress(checked as boolean)}
+                  />
+                  <Label htmlFor="saveAddress" className="flex items-center gap-2 cursor-pointer">
+                    <Save className="w-4 h-4 text-primary" />
+                    Lưu địa chỉ này cho lần mua sau
+                  </Label>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Payment Method */}
             <div className="bg-card rounded-xl p-6 border border-border">
