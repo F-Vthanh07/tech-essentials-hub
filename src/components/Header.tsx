@@ -149,7 +149,7 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
                   {categories.map((cat) => (
-                    <DropdownMenuItem key={cat.id} className="cursor-pointer">
+                    <DropdownMenuItem key={cat.id} className="cursor-pointer" onClick={() => navigate(`/?category=${cat.id}`)}>
                       {cat.name}
                     </DropdownMenuItem>
                   ))}
@@ -157,22 +157,22 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
               </DropdownMenu>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium text-primary">
+              <Button variant="ghost" className="font-medium text-primary" onClick={() => navigate('/promotions')}>
                 Khuyến mãi Hot 🔥
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium">
+              <Button variant="ghost" className="font-medium" onClick={() => navigate('/brands')}>
                 Thương hiệu
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium">
+              <Button variant="ghost" className="font-medium" onClick={() => navigate('/tech-news')}>
                 Bản tin công nghệ
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium">
+              <Button variant="ghost" className="font-medium" onClick={() => navigate('/support')}>
                 Hỗ trợ
               </Button>
             </li>
@@ -195,19 +195,29 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
             <ul className="space-y-1">
               {categories.map((cat) => (
                 <li key={cat.id}>
-                  <Button variant="ghost" className="w-full justify-start font-medium">
+                  <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate(`/?category=${cat.id}`); setIsMenuOpen(false); }}>
                     {cat.name}
                   </Button>
                 </li>
               ))}
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium text-primary">
+                <Button variant="ghost" className="w-full justify-start font-medium text-primary" onClick={() => { navigate('/promotions'); setIsMenuOpen(false); }}>
                   Khuyến mãi Hot 🔥
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium">
+                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/brands'); setIsMenuOpen(false); }}>
+                  Thương hiệu
+                </Button>
+              </li>
+              <li>
+                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/tech-news'); setIsMenuOpen(false); }}>
                   Bản tin công nghệ
+                </Button>
+              </li>
+              <li>
+                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/support'); setIsMenuOpen(false); }}>
+                  Hỗ trợ
                 </Button>
               </li>
             </ul>
