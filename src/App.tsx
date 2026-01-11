@@ -9,6 +9,10 @@ import ProductDetail from "./pages/ProductDetail";
 import Checkout from "./pages/Checkout";
 import OrderTracking from "./pages/OrderTracking";
 import Profile from "./pages/Profile";
+import Promotions from "./pages/Promotions";
+import Brands from "./pages/Brands";
+import TechNewsPage from "./pages/TechNewsPage";
+import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -30,6 +34,10 @@ const App = () => (
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/orders" element={<OrderTracking />} />
+            <Route path="/promotions" element={<Promotions />} />
+            <Route path="/brands" element={<Brands />} />
+            <Route path="/tech-news" element={<TechNewsPage />} />
+            <Route path="/support" element={<Support />} />
             <Route path="/profile" element={<Profile />} />
             
             {/* Admin Routes */}
