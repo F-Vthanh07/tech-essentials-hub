@@ -11,7 +11,99 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Upload, Palette, Type, Smartphone, ShoppingCart, Sparkles, ImageIcon, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { devices } from "@/data/products";
+
+// Phone models with specific designs
+const phoneModels: Record<string, {
+  name: string;
+  aspectRatio: string;
+  cameraStyle: "triple-vertical" | "triple-square" | "dual-vertical" | "single" | "island";
+  cameraPosition: "top-left" | "top-center" | "center";
+  notchStyle: "dynamic-island" | "notch" | "pill" | "none";
+  borderRadius: string;
+}> = {
+  "iPhone 16 Pro Max": {
+    name: "iPhone 16 Pro Max",
+    aspectRatio: "aspect-[9/19]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "dynamic-island",
+    borderRadius: "rounded-[2.5rem]",
+  },
+  "iPhone 16 Pro": {
+    name: "iPhone 16 Pro",
+    aspectRatio: "aspect-[9/19]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "dynamic-island",
+    borderRadius: "rounded-[2.5rem]",
+  },
+  "iPhone 16": {
+    name: "iPhone 16",
+    aspectRatio: "aspect-[9/19]",
+    cameraStyle: "dual-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "dynamic-island",
+    borderRadius: "rounded-[2.5rem]",
+  },
+  "iPhone 15 Pro Max": {
+    name: "iPhone 15 Pro Max",
+    aspectRatio: "aspect-[9/19]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "dynamic-island",
+    borderRadius: "rounded-[2.5rem]",
+  },
+  "iPhone 15 Pro": {
+    name: "iPhone 15 Pro",
+    aspectRatio: "aspect-[9/19]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "dynamic-island",
+    borderRadius: "rounded-[2.5rem]",
+  },
+  "Samsung Galaxy S24 Ultra": {
+    name: "Samsung Galaxy S24 Ultra",
+    aspectRatio: "aspect-[9/20]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "pill",
+    borderRadius: "rounded-[2rem]",
+  },
+  "Samsung Galaxy S24+": {
+    name: "Samsung Galaxy S24+",
+    aspectRatio: "aspect-[9/20]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "pill",
+    borderRadius: "rounded-[2rem]",
+  },
+  "Samsung Galaxy S24": {
+    name: "Samsung Galaxy S24",
+    aspectRatio: "aspect-[9/20]",
+    cameraStyle: "triple-vertical",
+    cameraPosition: "top-left",
+    notchStyle: "pill",
+    borderRadius: "rounded-[2rem]",
+  },
+  "Xiaomi 14 Ultra": {
+    name: "Xiaomi 14 Ultra",
+    aspectRatio: "aspect-[9/20]",
+    cameraStyle: "island",
+    cameraPosition: "top-center",
+    notchStyle: "pill",
+    borderRadius: "rounded-[2rem]",
+  },
+  "OPPO Find X7 Ultra": {
+    name: "OPPO Find X7 Ultra",
+    aspectRatio: "aspect-[9/20]",
+    cameraStyle: "island",
+    cameraPosition: "top-center",
+    notchStyle: "pill",
+    borderRadius: "rounded-[2rem]",
+  },
+};
+
+const availableDevices = Object.keys(phoneModels);
 
 const caseColors = [
   { id: "transparent", name: "Trong suốt", color: "bg-gray-100 border-2 border-dashed" },
@@ -35,6 +127,80 @@ const caseMaterials = [
 
 const basePrice = 150000;
 
+// Camera component based on phone style
+const CameraModule = ({ style, position }: { style: string; position: string }) => {
+  const positionClasses = position === "top-center" ? "top-6 left-1/2 -translate-x-1/2" : "top-6 left-6";
+  
+  if (style === "triple-vertical") {
+    return (
+      <div className={`absolute ${positionClasses} bg-gray-800 rounded-3xl p-2 flex flex-col gap-2`}>
+        <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+      </div>
+    );
+  }
+  
+  if (style === "dual-vertical") {
+    return (
+      <div className={`absolute ${positionClasses} bg-gray-800 rounded-3xl p-2 flex flex-col gap-2`}>
+        <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+      </div>
+    );
+  }
+  
+  if (style === "island") {
+    return (
+      <div className={`absolute ${positionClasses} bg-gray-800 rounded-full w-20 h-20 flex items-center justify-center`}>
+        <div className="w-14 h-14 bg-gray-700 rounded-full border-2 border-gray-600 flex items-center justify-center">
+          <div className="w-8 h-8 bg-gray-600 rounded-full" />
+        </div>
+      </div>
+    );
+  }
+  
+  if (style === "triple-square") {
+    return (
+      <div className={`absolute ${positionClasses} bg-gray-800 rounded-2xl p-2 grid grid-cols-2 gap-1`}>
+        <div className="w-6 h-6 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-6 h-6 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-6 h-6 bg-gray-700 rounded-full border-2 border-gray-600" />
+        <div className="w-6 h-6 bg-gray-600 rounded-full" />
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`absolute ${positionClasses} bg-gray-800 rounded-full w-12 h-12 flex items-center justify-center`}>
+      <div className="w-8 h-8 bg-gray-700 rounded-full border-2 border-gray-600" />
+    </div>
+  );
+};
+
+// Notch component based on phone style
+const NotchModule = ({ style }: { style: string }) => {
+  if (style === "dynamic-island") {
+    return (
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-24 h-7 bg-gray-900 rounded-full" />
+    );
+  }
+  
+  if (style === "notch") {
+    return (
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-gray-900 rounded-b-2xl" />
+    );
+  }
+  
+  if (style === "pill") {
+    return (
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-4 h-4 bg-gray-900 rounded-full" />
+    );
+  }
+  
+  return null;
+};
+
 const CustomCase = () => {
   const navigate = useNavigate();
   const [selectedDevice, setSelectedDevice] = useState("");
@@ -47,6 +213,10 @@ const CustomCase = () => {
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
   const totalPrice = (basePrice + (selectedMaterialData?.price || 0)) * quantity;
+  
+  // Get current phone model config or default
+  const defaultPhone = phoneModels["iPhone 16 Pro Max"];
+  const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -121,40 +291,44 @@ const CustomCase = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="relative aspect-[3/4] max-w-xs mx-auto rounded-3xl overflow-hidden shadow-2xl">
-                {/* Case Background */}
-                <div className={`absolute inset-0 ${caseColors.find(c => c.id === selectedColor)?.color || 'bg-gray-100'}`} />
-                
-                {/* Uploaded Image */}
-                {uploadedImage && (
-                  <div className="absolute inset-4 flex items-center justify-center">
-                    <img 
-                      src={uploadedImage} 
-                      alt="Custom design" 
-                      className="max-w-full max-h-full object-contain rounded-lg"
-                    />
-                  </div>
-                )}
-                
-                {/* Custom Text */}
-                {customText && (
-                  <div 
-                    className="absolute bottom-8 left-0 right-0 text-center px-4"
-                    style={{ color: textColor }}
-                  >
-                    <p className="text-xl font-bold break-words">{customText}</p>
-                  </div>
-                )}
-                
-                {/* Phone Frame Overlay */}
-                <div className="absolute inset-0 border-4 border-gray-800 rounded-3xl pointer-events-none">
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-20 h-6 bg-gray-800 rounded-full" />
+              {/* Phone Preview Container */}
+              <div className="flex flex-col items-center">
+                <div className={`relative w-48 ${currentPhone.aspectRatio} ${currentPhone.borderRadius} overflow-hidden shadow-2xl border-4 border-gray-800`}>
+                  {/* Case Background */}
+                  <div className={`absolute inset-0 ${caseColors.find(c => c.id === selectedColor)?.color || 'bg-gray-100'}`} />
+                  
+                  {/* Uploaded Image */}
+                  {uploadedImage && (
+                    <div className="absolute inset-4 flex items-center justify-center">
+                      <img 
+                        src={uploadedImage} 
+                        alt="Custom design" 
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Custom Text */}
+                  {customText && (
+                    <div 
+                      className="absolute bottom-12 left-0 right-0 text-center px-4"
+                      style={{ color: textColor }}
+                    >
+                      <p className="text-lg font-bold break-words drop-shadow-lg">{customText}</p>
+                    </div>
+                  )}
+                  
+                  {/* Camera Module */}
+                  <CameraModule style={currentPhone.cameraStyle} position={currentPhone.cameraPosition} />
+                  
+                  {/* Notch/Dynamic Island */}
+                  <NotchModule style={currentPhone.notchStyle} />
                 </div>
                 
-                {/* Camera Cutout */}
-                <div className="absolute top-8 left-8 w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center">
-                  <div className="w-10 h-10 bg-gray-700 rounded-full" />
-                </div>
+                {/* Device Name Badge */}
+                <Badge variant="secondary" className="mt-4">
+                  {selectedDevice || "Chọn thiết bị"}
+                </Badge>
               </div>
               
               <div className="mt-6 text-center">
@@ -182,7 +356,7 @@ const CustomCase = () => {
                     <SelectValue placeholder="Chọn model điện thoại của bạn" />
                   </SelectTrigger>
                   <SelectContent>
-                    {devices.map((device) => (
+                    {availableDevices.map((device) => (
                       <SelectItem key={device} value={device}>
                         {device}
                       </SelectItem>
