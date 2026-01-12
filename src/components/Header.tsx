@@ -176,6 +176,16 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
                 Hỗ trợ
               </Button>
             </li>
+            <li>
+              <Button variant="ghost" className="font-medium text-purple-500" onClick={() => navigate('/custom-case')}>
+                ✨ Custom ốp lưng
+              </Button>
+            </li>
+            <li>
+              <Button variant="ghost" className="font-medium text-orange-500" onClick={() => navigate('/wholesale')}>
+                🏪 Mua sỉ
+              </Button>
+            </li>
           </ul>
         </div>
       </nav>
@@ -218,6 +228,16 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
               <li>
                 <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/support'); setIsMenuOpen(false); }}>
                   Hỗ trợ
+                </Button>
+              </li>
+              <li>
+                <Button variant="ghost" className="w-full justify-start font-medium text-purple-500" onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
+                  ✨ Custom ốp lưng
+                </Button>
+              </li>
+              <li>
+                <Button variant="ghost" className="w-full justify-start font-medium text-orange-500" onClick={() => { navigate('/wholesale'); setIsMenuOpen(false); }}>
+                  🏪 Mua sỉ
                 </Button>
               </li>
             </ul>

@@ -13,6 +13,8 @@ import Promotions from "./pages/Promotions";
 import Brands from "./pages/Brands";
 import TechNewsPage from "./pages/TechNewsPage";
 import Support from "./pages/Support";
+import CustomCase from "./pages/CustomCase";
+import Wholesale from "./pages/Wholesale";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -38,6 +40,8 @@ const App = () => (
             <Route path="/brands" element={<Brands />} />
             <Route path="/tech-news" element={<TechNewsPage />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/custom-case" element={<CustomCase />} />
+            <Route path="/wholesale" element={<Wholesale />} />
             <Route path="/profile" element={<Profile />} />
             
             {/* Admin Routes */}
