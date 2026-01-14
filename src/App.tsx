@@ -16,6 +16,8 @@ import Support from "./pages/Support";
 import CustomCase from "./pages/CustomCase";
 import Wholesale from "./pages/Wholesale";
 import NotFound from "./pages/NotFound";
+import Cart from "./pages/Cart";
+import Auth from "./pages/Auth";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
@@ -43,6 +45,8 @@ const App = () => (
             <Route path="/custom-case" element={<CustomCase />} />
             <Route path="/wholesale" element={<Wholesale />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/auth" element={<Auth />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

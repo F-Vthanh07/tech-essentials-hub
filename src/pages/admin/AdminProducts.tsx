@@ -25,10 +25,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Palette, X } from "lucide-react";
 import { products as initialProducts, brands, categories } from "@/data/products";
-import { Product } from "@/types/product";
+import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
+
+const PRESET_COLORS = [
+  { name: "Đen", code: "#000000" },
+  { name: "Trắng", code: "#FFFFFF" },
+  { name: "Đỏ", code: "#EF4444" },
+  { name: "Xanh dương", code: "#3B82F6" },
+  { name: "Xanh lá", code: "#22C55E" },
+  { name: "Vàng", code: "#EAB308" },
+  { name: "Tím", code: "#A855F7" },
+  { name: "Hồng", code: "#EC4899" },
+  { name: "Cam", code: "#F97316" },
+  { name: "Xám", code: "#6B7280" },
+  { name: "Nâu", code: "#92400E" },
+  { name: "Xanh ngọc", code: "#14B8A6" },
+];
 
 const AdminProducts = () => {
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -48,6 +63,7 @@ const AdminProducts = () => {
     discount: 0,
     isBestseller: false
   });
+  const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,6 +84,7 @@ const AdminProducts = () => {
       discount: 0,
       isBestseller: false
     });
+    setColorVariants([]);
     setEditingProduct(null);
   };
 
@@ -91,7 +108,35 @@ const AdminProducts = () => {
       discount: product.discount || 0,
       isBestseller: product.isBestseller || false
     });
+    setColorVariants(product.colorVariants || []);
     setIsDialogOpen(true);
+  };
+
+  const handleAddColorVariant = () => {
+    const newVariant: ColorVariant = {
+      id: `color_${Date.now()}`,
+      name: "",
+      colorCode: "#000000",
+      price: formData.price,
+      discount: 0
+    };
+    setColorVariants([...colorVariants, newVariant]);
+  };
+
+  const handleUpdateColorVariant = (id: string, field: keyof ColorVariant, value: string | number) => {
+    setColorVariants(colorVariants.map(cv => 
+      cv.id === id ? { ...cv, [field]: value } : cv
+    ));
+  };
+
+  const handleRemoveColorVariant = (id: string) => {
+    setColorVariants(colorVariants.filter(cv => cv.id !== id));
+  };
+
+  const handleSelectPresetColor = (variantId: string, preset: { name: string; code: string }) => {
+    setColorVariants(colorVariants.map(cv => 
+      cv.id === variantId ? { ...cv, name: preset.name, colorCode: preset.code } : cv
+    ));
   };
 
   const handleSave = () => {
@@ -104,10 +149,22 @@ const AdminProducts = () => {
       return;
     }
 
+    // Validate color variants
+    for (const cv of colorVariants) {
+      if (!cv.name) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng nhập tên màu cho tất cả biến thể",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     if (editingProduct) {
       setProducts(products.map(p => 
         p.id === editingProduct.id 
-          ? { ...p, ...formData }
+          ? { ...p, ...formData, colorVariants: colorVariants.length > 0 ? colorVariants : undefined }
           : p
       ));
       toast({
@@ -117,7 +174,8 @@ const AdminProducts = () => {
     } else {
       const newProduct: Product = {
         id: `prod_${Date.now()}`,
-        ...formData
+        ...formData,
+        colorVariants: colorVariants.length > 0 ? colorVariants : undefined
       };
       setProducts([...products, newProduct]);
       toast({
@@ -173,6 +231,7 @@ const AdminProducts = () => {
                 <TableHead>Thương hiệu</TableHead>
                 <TableHead>Danh mục</TableHead>
                 <TableHead>Giá</TableHead>
+                <TableHead>Màu sắc</TableHead>
                 <TableHead>Giảm giá</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
@@ -191,6 +250,25 @@ const AdminProducts = () => {
                   <TableCell>{product.brand}</TableCell>
                   <TableCell>{product.category}</TableCell>
                   <TableCell>{product.price.toLocaleString('vi-VN')}đ</TableCell>
+                  <TableCell>
+                    {product.colorVariants && product.colorVariants.length > 0 ? (
+                      <div className="flex gap-1">
+                        {product.colorVariants.slice(0, 4).map((cv) => (
+                          <div
+                            key={cv.id}
+                            className="w-5 h-5 rounded-full border border-border"
+                            style={{ backgroundColor: cv.colorCode }}
+                            title={`${cv.name}: ${cv.price.toLocaleString('vi-VN')}đ`}
+                          />
+                        ))}
+                        {product.colorVariants.length > 4 && (
+                          <span className="text-xs text-muted-foreground">+{product.colorVariants.length - 4}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {product.discount ? `${product.discount}%` : '-'}
                   </TableCell>
@@ -221,7 +299,7 @@ const AdminProducts = () => {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}
@@ -240,7 +318,7 @@ const AdminProducts = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="price">Giá *</Label>
+                <Label htmlFor="price">Giá mặc định *</Label>
                 <Input
                   id="price"
                   type="number"
@@ -249,7 +327,7 @@ const AdminProducts = () => {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="discount">Giảm giá (%)</Label>
+                <Label htmlFor="discount">Giảm giá mặc định (%)</Label>
                 <Input
                   id="discount"
                   type="number"
@@ -338,6 +416,116 @@ const AdminProducts = () => {
                 />
                 <span className="text-sm">Bán chạy</span>
               </label>
+            </div>
+
+            {/* Color Variants Section */}
+            <div className="border-t pt-4 mt-2">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-primary" />
+                  <Label className="text-base font-semibold">Biến thể màu sắc</Label>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddColorVariant}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Thêm màu
+                </Button>
+              </div>
+
+              {colorVariants.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4 bg-secondary/50 rounded-lg">
+                  Chưa có biến thể màu nào. Thêm biến thể để thiết lập giá riêng cho từng màu.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {colorVariants.map((variant, index) => (
+                    <Card key={variant.id} className="p-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="col-span-2 md:col-span-1">
+                            <Label className="text-xs">Màu sắc</Label>
+                            <div className="flex gap-2 mt-1">
+                              <div
+                                className="w-10 h-10 rounded-lg border-2 border-border cursor-pointer flex-shrink-0"
+                                style={{ backgroundColor: variant.colorCode }}
+                              />
+                              <Select
+                                value={variant.name}
+                                onValueChange={(value) => {
+                                  const preset = PRESET_COLORS.find(c => c.name === value);
+                                  if (preset) {
+                                    handleSelectPresetColor(variant.id, preset);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Chọn màu" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PRESET_COLORS.map((color) => (
+                                    <SelectItem key={color.code} value={color.name}>
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className="w-4 h-4 rounded-full border"
+                                          style={{ backgroundColor: color.code }}
+                                        />
+                                        {color.name}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Mã màu</Label>
+                            <Input
+                              type="color"
+                              value={variant.colorCode}
+                              onChange={(e) => handleUpdateColorVariant(variant.id, "colorCode", e.target.value)}
+                              className="mt-1 h-10 p-1 cursor-pointer"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Giá (VNĐ)</Label>
+                            <Input
+                              type="number"
+                              value={variant.price}
+                              onChange={(e) => handleUpdateColorVariant(variant.id, "price", Number(e.target.value))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Giảm giá (%)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={variant.discount || 0}
+                              onChange={(e) => handleUpdateColorVariant(variant.id, "discount", Number(e.target.value))}
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive flex-shrink-0"
+                          onClick={() => handleRemoveColorVariant(variant.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {variant.price !== formData.price && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Giá {variant.name}: {variant.price.toLocaleString('vi-VN')}đ 
+                          {variant.discount ? ` (Giảm ${variant.discount}%)` : ""}
+                        </p>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
