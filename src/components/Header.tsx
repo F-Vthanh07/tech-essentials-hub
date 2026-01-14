@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { categories } from "@/data/products";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
 import { MEMBERSHIP_LEVELS } from "@/types/user";
 import { toast } from "sonner";
 
@@ -21,7 +22,9 @@ interface HeaderProps {
   onCartClick?: () => void;
 }
 
-const Header = ({ cartCount = 0 }: HeaderProps) => {
+const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
+  const { getCartCount } = useCart();
+  const cartCount = propCartCount ?? getCartCount();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { user, logout } = useAuth();
@@ -179,11 +182,6 @@ const Header = ({ cartCount = 0 }: HeaderProps) => {
                 ✨ Custom ốp lưng
               </Button>
             </li>
-            <li>
-              <Button variant="ghost" className="font-medium text-orange-500" onClick={() => navigate('/wholesale')}>
-                🏪 Mua sỉ
-              </Button>
-            </li>
           </ul>
         </div>
       </nav>
@@ -231,11 +229,6 @@ const Header = ({ cartCount = 0 }: HeaderProps) => {
               <li>
                 <Button variant="ghost" className="w-full justify-start font-medium text-purple-500" onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
                   ✨ Custom ốp lưng
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" className="w-full justify-start font-medium text-orange-500" onClick={() => { navigate('/wholesale'); setIsMenuOpen(false); }}>
-                  🏪 Mua sỉ
                 </Button>
               </li>
             </ul>

@@ -244,45 +244,6 @@ const Profile: React.FC = () => {
             )}
           </Card>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 text-yellow-500" />
-                  <span className="text-sm text-muted-foreground">Điểm hiện có</span>
-                </div>
-                <p className="text-2xl font-bold mt-1">{user.points.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-blue-500" />
-                  <span className="text-sm text-muted-foreground">Tổng chi tiêu</span>
-                </div>
-                <p className="text-2xl font-bold mt-1">{formatCurrency(user.totalSpent)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-500" />
-                  <span className="text-sm text-muted-foreground">Hệ số điểm</span>
-                </div>
-                <p className="text-2xl font-bold mt-1">x{currentLevel.pointsMultiplier}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Gift className="w-5 h-5 text-purple-500" />
-                  <span className="text-sm text-muted-foreground">Quy đổi</span>
-                </div>
-                <p className="text-2xl font-bold mt-1">{formatCurrency(user.points * 1000)}</p>
-              </CardContent>
-            </Card>
-          </div>
 
           {/* Tabs */}
           <Tabs defaultValue="history" className="w-full">

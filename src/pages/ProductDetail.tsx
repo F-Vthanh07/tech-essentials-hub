@@ -21,14 +21,10 @@ import Footer from "@/components/Footer";
 import FloatingContact from "@/components/FloatingContact";
 import ProductGallery from "@/components/ProductGallery";
 import RelatedProducts from "@/components/RelatedProducts";
-import CartDrawer from "@/components/CartDrawer";
 import { products } from "@/data/products";
-import { Product } from "@/types/product";
+import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
-
-interface CartItem extends Product {
-  quantity: number;
-}
+import { useCart } from "@/contexts/CartContext";
 
 // Extended product data with gallery and description
 const getProductDetails = (product: Product) => {
@@ -131,24 +127,27 @@ Bảo hành 12 tháng chính hãng.`,
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
 
   const product = products.find((p) => p.id === id);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [id]);
+    // Reset selected color when product changes
+    if (product?.colorVariants && product.colorVariants.length > 0) {
+      setSelectedColor(product.colorVariants[0]);
+    } else {
+      setSelectedColor(null);
+    }
+  }, [id, product]);
 
   if (!product) {
     return (
       <div className="min-h-screen bg-background">
-        <Header
-          cartCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
-          onCartClick={() => setIsCartOpen(true)}
-        />
+        <Header />
         <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="text-2xl font-bold mb-4">Không tìm thấy sản phẩm</h1>
           <Link to="/">
@@ -178,38 +177,26 @@ const ProductDetail = () => {
     }).format(price);
   };
 
-  const handleAddToCart = (productToAdd: Product, qty: number = 1) => {
-    setCartItems((prev) => {
-      const existingItem = prev.find((item) => item.id === productToAdd.id);
-      if (existingItem) {
-        return prev.map((item) =>
-          item.id === productToAdd.id
-            ? { ...item, quantity: item.quantity + qty }
-            : item
-        );
-      }
-      return [...prev, { ...productToAdd, quantity: qty }];
-    });
+  // Get current display price based on selected color
+  const displayPrice = selectedColor?.price ?? product.price;
+  const displayDiscount = selectedColor?.discount ?? product.discount ?? 0;
+  const originalDisplayPrice = displayDiscount > 0 ? displayPrice : product.originalPrice;
+  const finalPrice = displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice;
+
+  const handleAddToCart = () => {
+    addToCart(product, quantity, selectedColor || undefined);
     toast({
       title: "Đã thêm vào giỏ hàng",
-      description: `${qty}x ${productToAdd.name}`,
+      description: `${quantity}x ${product.name}${selectedColor ? ` - ${selectedColor.name}` : ''}`,
     });
   };
 
-  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      setCartItems((prev) => prev.filter((item) => item.id !== productId));
-    } else {
-      setCartItems((prev) =>
-        prev.map((item) =>
-          item.id === productId ? { ...item, quantity: newQuantity } : item
-        )
-      );
-    }
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== productId));
+  const handleAddRelatedToCart = (productToAdd: Product) => {
+    addToCart(productToAdd, 1);
+    toast({
+      title: "Đã thêm vào giỏ hàng",
+      description: `1x ${productToAdd.name}`,
+    });
   };
 
   const handleShare = async () => {
@@ -229,10 +216,7 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header
-        cartCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
-        onCartClick={() => setIsCartOpen(true)}
-      />
+      <Header />
 
       <main className="pt-20">
         {/* Breadcrumb */}
@@ -302,19 +286,53 @@ const ProductDetail = () => {
               {/* Price */}
               <div className="flex items-baseline gap-4">
                 <span className="text-3xl font-bold text-primary">
-                  {formatPrice(product.price)}
+                  {formatPrice(finalPrice)}
                 </span>
-                {product.originalPrice && (
+                {(displayDiscount > 0 || originalDisplayPrice) && (
                   <>
                     <span className="text-xl text-muted-foreground line-through">
-                      {formatPrice(product.originalPrice)}
+                      {formatPrice(displayPrice)}
                     </span>
-                    <Badge variant="destructive" className="text-sm">
-                      -{product.discount}%
-                    </Badge>
+                    {displayDiscount > 0 && (
+                      <Badge variant="destructive" className="text-sm">
+                        -{displayDiscount}%
+                      </Badge>
+                    )}
                   </>
                 )}
               </div>
+
+              {/* Color Variants */}
+              {product.colorVariants && product.colorVariants.length > 0 && (
+                <div className="space-y-3">
+                  <span className="text-sm font-medium">Chọn màu sắc:</span>
+                  <div className="flex flex-wrap gap-3">
+                    {product.colorVariants.map((color) => (
+                      <button
+                        key={color.id}
+                        onClick={() => setSelectedColor(color)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                          selectedColor?.id === color.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <div 
+                          className="w-6 h-6 rounded-full border border-border"
+                          style={{ backgroundColor: color.colorCode }}
+                        />
+                        <div className="text-left">
+                          <p className="text-sm font-medium">{color.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
+                            {color.discount ? ` (-${color.discount}%)` : ''}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Device */}
               <div className="flex items-center gap-2">
@@ -363,7 +381,7 @@ const ProductDetail = () => {
                   variant="brand"
                   size="lg"
                   className="flex-1"
-                  onClick={() => handleAddToCart(product, quantity)}
+                  onClick={handleAddToCart}
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   Thêm vào giỏ hàng
@@ -495,18 +513,11 @@ const ProductDetail = () => {
         </section>
 
         {/* Related Products */}
-        <RelatedProducts products={relatedProducts} onAddToCart={handleAddToCart} />
+        <RelatedProducts products={relatedProducts} onAddToCart={handleAddRelatedToCart} />
       </main>
 
       <Footer />
       <FloatingContact />
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
     </div>
   );
 };

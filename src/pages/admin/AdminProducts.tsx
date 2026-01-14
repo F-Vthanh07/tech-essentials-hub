@@ -118,7 +118,8 @@ const AdminProducts = () => {
       name: "",
       colorCode: "#000000",
       price: formData.price,
-      discount: 0
+      discount: 0,
+      image: ""
     };
     setColorVariants([...colorVariants, newVariant]);
   };
@@ -440,7 +441,7 @@ const AdminProducts = () => {
                   {colorVariants.map((variant, index) => (
                     <Card key={variant.id} className="p-4">
                       <div className="flex items-start gap-4">
-                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3">
                           <div className="col-span-2 md:col-span-1">
                             <Label className="text-xs">Màu sắc</Label>
                             <div className="flex gap-2 mt-1">
@@ -505,6 +506,16 @@ const AdminProducts = () => {
                               className="mt-1"
                             />
                           </div>
+                          <div>
+                            <Label className="text-xs">URL hình ảnh</Label>
+                            <Input
+                              type="text"
+                              placeholder="URL hình ảnh cho màu này"
+                              value={variant.image || ""}
+                              onChange={(e) => handleUpdateColorVariant(variant.id, "image", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
                         </div>
                         <Button
                           type="button"
@@ -516,6 +527,17 @@ const AdminProducts = () => {
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
+                      {variant.image && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <img 
+                            src={variant.image} 
+                            alt={variant.name}
+                            className="w-12 h-12 object-cover rounded border"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <span className="text-xs text-muted-foreground">Xem trước hình ảnh</span>
+                        </div>
+                      )}
                       {variant.price !== formData.price && (
                         <p className="text-xs text-muted-foreground mt-2">
                           Giá {variant.name}: {variant.price.toLocaleString('vi-VN')}đ 
