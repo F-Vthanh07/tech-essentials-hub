@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { categories } from "@/data/products";
 import { useAuth } from "@/contexts/AuthContext";
-import AuthModal from "@/components/AuthModal";
 import { MEMBERSHIP_LEVELS } from "@/types/user";
 import { toast } from "sonner";
 
@@ -22,10 +21,9 @@ interface HeaderProps {
   onCartClick?: () => void;
 }
 
-const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
+const Header = ({ cartCount = 0 }: HeaderProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -80,7 +78,7 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
               <Search className="w-5 h-5" />
             </Button>
             
-            <Button variant="ghost" size="icon" className="relative" onClick={onCartClick}>
+            <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/cart')}>
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
                 <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-primary">
@@ -118,7 +116,7 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setAuthModalOpen(true)}>
+              <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => navigate('/auth')}>
                 <User className="w-5 h-5" />
               </Button>
             )}
@@ -244,8 +242,6 @@ const Header = ({ cartCount = 0, onCartClick }: HeaderProps) => {
           </div>
         </div>
       )}
-
-      <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
     </header>
   );
 };

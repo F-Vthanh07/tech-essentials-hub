@@ -1,3 +1,12 @@
+export interface ColorVariant {
+  id: string;
+  name: string;
+  colorCode: string;
+  price: number;
+  discount?: number;
+  image?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -13,6 +22,7 @@ export interface Product {
   isBestseller?: boolean;
   discount?: number;
   features?: string[];
+  colorVariants?: ColorVariant[];
 }
 
 export interface Brand {
