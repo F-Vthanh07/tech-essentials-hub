@@ -1,28 +1,18 @@
 import { useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Minus, Plus, X, Trash2, Tag, ArrowLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Product } from "@/types/product";
+import { useCart } from "@/contexts/CartContext";
 import { discountCodes } from "@/data/products";
-
-interface CartItem extends Product {
-  quantity: number;
-}
-
-interface LocationState {
-  cartItems?: CartItem[];
-}
 
 const Cart = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const state = location.state as LocationState;
+  const { items, updateQuantity, removeFromCart } = useCart();
   
-  const [items, setItems] = useState<CartItem[]>(state?.cartItems || []);
   const [promoCode, setPromoCode] = useState("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState("");
@@ -34,18 +24,21 @@ const Cart = () => {
     }).format(price);
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
-    if (quantity < 1) return;
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
-    );
+  const getItemPrice = (item: typeof items[0]) => {
+    return item.selectedColor?.price ?? item.product.price;
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const getItemDiscount = (item: typeof items[0]) => {
+    return item.selectedColor?.discount ?? item.product.discount ?? 0;
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const getItemFinalPrice = (item: typeof items[0]) => {
+    const price = getItemPrice(item);
+    const discount = getItemDiscount(item);
+    return price * (1 - discount / 100);
+  };
+
+  const subtotal = items.reduce((sum, item) => sum + getItemFinalPrice(item) * item.quantity, 0);
 
   const appliedDiscount = discountCodes.find(
     (code) => code.code === appliedCode && subtotal >= code.minOrder
@@ -75,7 +68,6 @@ const Cart = () => {
   const handleCheckout = () => {
     navigate("/checkout", {
       state: {
-        cartItems: items,
         discount: appliedDiscount?.discount || 0,
       },
     });
@@ -83,7 +75,7 @@ const Cart = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header cartCount={items.reduce((sum, item) => sum + item.quantity, 0)} onCartClick={() => {}} />
+      <Header />
 
       <main className="flex-1 container py-8">
         <div className="flex items-center gap-4 mb-6">
@@ -115,22 +107,38 @@ const Cart = () => {
                   <CardContent className="p-4">
                     <div className="flex gap-4">
                       <img
-                        src={item.image}
-                        alt={item.name}
+                        src={item.selectedColor?.image || item.product.image}
+                        alt={item.product.name}
                         className="w-24 h-24 object-cover rounded-lg"
                       />
                       <div className="flex-1 min-w-0">
-                        <Link to={`/product/${item.id}`} className="font-medium hover:text-primary line-clamp-2">
-                          {item.name}
+                        <Link to={`/product/${item.product.id}`} className="font-medium hover:text-primary line-clamp-2">
+                          {item.product.name}
                         </Link>
-                        <p className="text-muted-foreground text-sm mt-1">{item.brand}</p>
-                        <p className="text-primary font-semibold mt-2">
-                          {formatPrice(item.price)}
-                        </p>
+                        <p className="text-muted-foreground text-sm mt-1">{item.product.brand}</p>
+                        {item.selectedColor && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <div 
+                              className="w-4 h-4 rounded-full border border-border"
+                              style={{ backgroundColor: item.selectedColor.colorCode }}
+                            />
+                            <span className="text-sm text-muted-foreground">{item.selectedColor.name}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <p className="text-primary font-semibold">
+                            {formatPrice(getItemFinalPrice(item))}
+                          </p>
+                          {getItemDiscount(item) > 0 && (
+                            <span className="text-sm text-muted-foreground line-through">
+                              {formatPrice(getItemPrice(item))}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <button
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeFromCart(item.id)}
                           className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -153,7 +161,7 @@ const Cart = () => {
                           </button>
                         </div>
                         <p className="font-semibold">
-                          {formatPrice(item.price * item.quantity)}
+                          {formatPrice(getItemFinalPrice(item) * item.quantity)}
                         </p>
                       </div>
                     </div>

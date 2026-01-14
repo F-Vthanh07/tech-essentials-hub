@@ -212,7 +212,20 @@ const CustomCase = () => {
   const [quantity, setQuantity] = useState(1);
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
-  const totalPrice = (basePrice + (selectedMaterialData?.price || 0)) * quantity;
+  
+  // Quantity discount tiers
+  const getQuantityDiscount = (qty: number) => {
+    if (qty >= 50) return 25;
+    if (qty >= 20) return 15;
+    if (qty >= 10) return 10;
+    if (qty >= 5) return 5;
+    return 0;
+  };
+  
+  const quantityDiscount = getQuantityDiscount(quantity);
+  const baseItemPrice = basePrice + (selectedMaterialData?.price || 0);
+  const discountedItemPrice = baseItemPrice * (1 - quantityDiscount / 100);
+  const totalPrice = discountedItemPrice * quantity;
   
   // Get current phone model config or default
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
@@ -495,30 +508,49 @@ const CustomCase = () => {
             {/* Quantity & Actions */}
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-4 mb-6">
-                  <Label>Số lượng:</Label>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    >
-                      -
-                    </Button>
-                    <span className="w-12 text-center font-medium">{quantity}</span>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setQuantity(quantity + 1)}
-                    >
-                      +
-                    </Button>
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-4">
+                    <Label>Số lượng:</Label>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      >
+                        -
+                      </Button>
+                      <span className="w-12 text-center font-medium">{quantity}</span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setQuantity(quantity + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
                   </div>
-                  {quantity >= 10 && (
-                    <Badge variant="secondary" className="ml-auto">
-                      Giảm 10% khi mua từ 10 cái
-                    </Badge>
-                  )}
+                  
+                  {/* Quantity Discounts */}
+                  <div className="bg-secondary/50 rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-medium">Ưu đãi mua số lượng lớn:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className={`p-2 rounded ${quantity >= 5 && quantity < 10 ? 'bg-primary/20 border border-primary' : 'bg-background'}`}>
+                        5-9 cái: <span className="font-bold text-primary">Giảm 5%</span>
+                      </div>
+                      <div className={`p-2 rounded ${quantity >= 10 && quantity < 20 ? 'bg-primary/20 border border-primary' : 'bg-background'}`}>
+                        10-19 cái: <span className="font-bold text-primary">Giảm 10%</span>
+                      </div>
+                      <div className={`p-2 rounded ${quantity >= 20 && quantity < 50 ? 'bg-primary/20 border border-primary' : 'bg-background'}`}>
+                        20-49 cái: <span className="font-bold text-primary">Giảm 15%</span>
+                      </div>
+                      <div className={`p-2 rounded ${quantity >= 50 ? 'bg-primary/20 border border-primary' : 'bg-background'}`}>
+                        50+ cái: <span className="font-bold text-primary">Giảm 25%</span>
+                      </div>
+                    </div>
+                    {quantityDiscount > 0 && (
+                      <Badge className="bg-green-500">Bạn đang được giảm {quantityDiscount}%!</Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-3">
