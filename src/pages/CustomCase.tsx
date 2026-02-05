@@ -1,4 +1,4 @@
-import { useState } from "react";
+ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Palette, Type, Smartphone, ShoppingCart, Sparkles, ImageIcon, RotateCcw } from "lucide-react";
+ import { Palette, Smartphone, ShoppingCart, Sparkles, RotateCcw, PenTool } from "lucide-react";
+ import CaseDesignEditor from "@/components/CaseDesignEditor";
 import { toast } from "sonner";
 
 // Phone models with specific designs
@@ -201,14 +202,29 @@ const NotchModule = ({ style }: { style: string }) => {
   return null;
 };
 
-const CustomCase = () => {
+ interface DesignElement {
+   id: string;
+   type: "image" | "text";
+   x: number;
+   y: number;
+   width: number;
+   height: number;
+   rotation: number;
+   scaleX: number;
+   scaleY: number;
+   content: string;
+   color?: string;
+   fontSize?: number;
+   fontFamily?: string;
+   zIndex: number;
+ }
+ 
+ const CustomCase = () => {
   const navigate = useNavigate();
   const [selectedDevice, setSelectedDevice] = useState("");
   const [selectedColor, setSelectedColor] = useState("transparent");
   const [selectedMaterial, setSelectedMaterial] = useState("soft");
-  const [customText, setCustomText] = useState("");
-  const [textColor, setTextColor] = useState("#000000");
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+   const [designElements, setDesignElements] = useState<DesignElement[]>([]);
   const [quantity, setQuantity] = useState(1);
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
@@ -231,29 +247,16 @@ const CustomCase = () => {
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
   const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Kích thước file tối đa 5MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setUploadedImage(event.target?.result as string);
-        toast.success("Đã tải ảnh lên thành công!");
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+ 
+   const handleDesignChange = useCallback((elements: DesignElement[]) => {
+     setDesignElements(elements);
+   }, []);
 
   const handleReset = () => {
     setSelectedDevice("");
     setSelectedColor("transparent");
     setSelectedMaterial("soft");
-    setCustomText("");
-    setTextColor("#000000");
-    setUploadedImage(null);
+     setDesignElements([]);
     setQuantity(1);
     toast.info("Đã reset thiết kế");
   };
@@ -299,52 +302,29 @@ const CustomCase = () => {
           <Card className="lg:sticky lg:top-24 h-fit">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5" />
-                Xem trước thiết kế
+                 <PenTool className="w-5 h-5" />
+                 Thiết kế ốp lưng
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Phone Preview Container */}
-              <div className="flex flex-col items-center">
-                <div className={`relative w-48 ${currentPhone.aspectRatio} ${currentPhone.borderRadius} overflow-hidden shadow-2xl border-4 border-gray-800`}>
-                  {/* Case Background */}
-                  <div className={`absolute inset-0 ${caseColors.find(c => c.id === selectedColor)?.color || 'bg-gray-100'}`} />
-                  
-                  {/* Uploaded Image */}
-                  {uploadedImage && (
-                    <div className="absolute inset-4 flex items-center justify-center">
-                      <img 
-                        src={uploadedImage} 
-                        alt="Custom design" 
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Custom Text */}
-                  {customText && (
-                    <div 
-                      className="absolute bottom-12 left-0 right-0 text-center px-4"
-                      style={{ color: textColor }}
-                    >
-                      <p className="text-lg font-bold break-words drop-shadow-lg">{customText}</p>
-                    </div>
-                  )}
-                  
-                  {/* Camera Module */}
-                  <CameraModule style={currentPhone.cameraStyle} position={currentPhone.cameraPosition} />
-                  
-                  {/* Notch/Dynamic Island */}
-                  <NotchModule style={currentPhone.notchStyle} />
-                </div>
-                
-                {/* Device Name Badge */}
-                <Badge variant="secondary" className="mt-4">
-                  {selectedDevice || "Chọn thiết bị"}
-                </Badge>
-              </div>
-              
-              <div className="mt-6 text-center">
+               <CaseDesignEditor
+                 caseColor={selectedColor}
+                 caseColorClass={caseColors.find(c => c.id === selectedColor)?.color || 'bg-gray-100'}
+                 aspectRatio={currentPhone.aspectRatio}
+                 borderRadius={currentPhone.borderRadius}
+                 cameraModule={<CameraModule style={currentPhone.cameraStyle} position={currentPhone.cameraPosition} />}
+                 notchModule={<NotchModule style={currentPhone.notchStyle} />}
+                 onDesignChange={handleDesignChange}
+               />
+               
+               {/* Device Name Badge */}
+               <div className="text-center mt-4">
+                 <Badge variant="secondary">
+                   {selectedDevice || "Chọn thiết bị"}
+                 </Badge>
+               </div>
+               
+               <div className="mt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{totalPrice.toLocaleString()}đ</p>
                 <p className="text-muted-foreground text-sm">
                   {selectedDevice || "Chưa chọn thiết bị"} • {selectedMaterialData?.name}
@@ -429,78 +409,6 @@ const CustomCase = () => {
                       title={color.name}
                     />
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Image Upload */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <ImageIcon className="w-5 h-5" />
-                  Tải ảnh lên
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Label htmlFor="image-upload" className="cursor-pointer">
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
-                      <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-muted-foreground">Click để tải ảnh lên (tối đa 5MB)</p>
-                      <p className="text-sm text-muted-foreground mt-1">PNG, JPG, JPEG</p>
-                    </div>
-                  </Label>
-                  <Input
-                    id="image-upload"
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  {uploadedImage && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Đã tải ảnh</Badge>
-                      <Button variant="ghost" size="sm" onClick={() => setUploadedImage(null)}>
-                        Xóa ảnh
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Custom Text */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Type className="w-5 h-5" />
-                  Thêm chữ
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="custom-text">Nội dung (tối đa 50 ký tự)</Label>
-                  <Textarea
-                    id="custom-text"
-                    placeholder="Nhập tên, slogan hoặc thông điệp của bạn..."
-                    value={customText}
-                    onChange={(e) => setCustomText(e.target.value.slice(0, 50))}
-                    maxLength={50}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">{customText.length}/50 ký tự</p>
-                </div>
-                <div>
-                  <Label htmlFor="text-color">Màu chữ</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="text-color"
-                      type="color"
-                      value={textColor}
-                      onChange={(e) => setTextColor(e.target.value)}
-                      className="w-16 h-10 p-1 cursor-pointer"
-                    />
-                    <span className="text-muted-foreground">{textColor}</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>
