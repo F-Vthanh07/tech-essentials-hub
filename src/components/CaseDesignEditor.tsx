@@ -13,7 +13,9 @@
    Layers,
    Copy,
    FlipHorizontal,
-   FlipVertical
+   FlipVertical,
+   Layout,
+   Sparkles
  } from "lucide-react";
  import { toast } from "sonner";
  
@@ -33,6 +35,219 @@
    fontFamily?: string;
    zIndex: number;
  }
+ 
+ interface DesignTemplate {
+   id: string;
+   name: string;
+   thumbnail: string;
+   elements: Omit<DesignElement, 'id' | 'zIndex'>[];
+ }
+ 
+ const designTemplates: DesignTemplate[] = [
+   {
+     id: "minimal-name",
+     name: "Tên đơn giản",
+     thumbnail: "https://images.unsplash.com/photo-1534481909716-9a482087f27d?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "text",
+         x: 15,
+         y: 70,
+         width: 70,
+         height: 15,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "YOUR NAME",
+         color: "#000000",
+         fontSize: 18,
+         fontFamily: "Arial"
+       }
+     ]
+   },
+   {
+     id: "floral",
+     name: "Hoa văn",
+     thumbnail: "https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 5,
+         y: 30,
+         width: 90,
+         height: 50,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=400&h=400&fit=crop"
+       },
+       {
+         type: "text",
+         x: 20,
+         y: 85,
+         width: 60,
+         height: 10,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "Beautiful",
+         color: "#ec4899",
+         fontSize: 14,
+         fontFamily: "Georgia"
+       }
+     ]
+   },
+   {
+     id: "geometric",
+     name: "Hình học",
+     thumbnail: "https://images.unsplash.com/photo-1557683316-973673baf926?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 10,
+         y: 20,
+         width: 80,
+         height: 60,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1557683316-973673baf926?w=400&h=400&fit=crop"
+       }
+     ]
+   },
+   {
+     id: "galaxy",
+     name: "Thiên hà",
+     thumbnail: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 0,
+         y: 15,
+         width: 100,
+         height: 70,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&h=400&fit=crop"
+       },
+       {
+         type: "text",
+         x: 25,
+         y: 50,
+         width: 50,
+         height: 10,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "DREAM",
+         color: "#ffffff",
+         fontSize: 20,
+         fontFamily: "Arial"
+       }
+     ]
+   },
+   {
+     id: "marble",
+     name: "Đá cẩm thạch",
+     thumbnail: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 0,
+         y: 10,
+         width: 100,
+         height: 80,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop"
+       }
+     ]
+   },
+   {
+     id: "gradient-text",
+     name: "Quote",
+     thumbnail: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 0,
+         y: 10,
+         width: 100,
+         height: 80,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=400&fit=crop"
+       },
+       {
+         type: "text",
+         x: 10,
+         y: 40,
+         width: 80,
+         height: 15,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "Stay Positive",
+         color: "#ffffff",
+         fontSize: 16,
+         fontFamily: "Georgia"
+       },
+       {
+         type: "text",
+         x: 15,
+         y: 55,
+         width: 70,
+         height: 10,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "Work Hard",
+         color: "#ffffff",
+         fontSize: 12,
+         fontFamily: "Arial"
+       }
+     ]
+   },
+   {
+     id: "nature",
+     name: "Thiên nhiên",
+     thumbnail: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 0,
+         y: 15,
+         width: 100,
+         height: 70,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=400&fit=crop"
+       }
+     ]
+   },
+   {
+     id: "abstract",
+     name: "Trừu tượng",
+     thumbnail: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=100&h=200&fit=crop",
+     elements: [
+       {
+         type: "image",
+         x: 5,
+         y: 20,
+         width: 90,
+         height: 60,
+         rotation: 0,
+         scaleX: 1,
+         scaleY: 1,
+         content: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=400&h=400&fit=crop"
+       }
+     ]
+   }
+ ];
  
  interface CaseDesignEditorProps {
    caseColor: string;
@@ -59,6 +274,7 @@
    const [isResizing, setIsResizing] = useState(false);
    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
    const [resizeStart, setResizeStart] = useState({ width: 0, height: 0, x: 0, y: 0 });
+   const [showTemplates, setShowTemplates] = useState(false);
    const canvasRef = useRef<HTMLDivElement>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
  
@@ -69,6 +285,18 @@
    }, [elements, onDesignChange]);
  
    const generateId = () => Math.random().toString(36).substr(2, 9);
+ 
+   const applyTemplate = (template: DesignTemplate) => {
+     const newElements: DesignElement[] = template.elements.map((el, index) => ({
+       ...el,
+       id: generateId(),
+       zIndex: index
+     }));
+     setElements(newElements);
+     setSelectedId(null);
+     setShowTemplates(false);
+     toast.success(`Đã áp dụng template "${template.name}"`);
+   };
  
    const addTextElement = () => {
      const newElement: DesignElement = {
@@ -230,6 +458,40 @@
  
    return (
      <div className="space-y-4">
+       {/* Templates Section */}
+       <div className="space-y-2">
+         <Button 
+           variant="outline" 
+           className="w-full"
+           onClick={() => setShowTemplates(!showTemplates)}
+         >
+           <Layout className="w-4 h-4 mr-2" />
+           {showTemplates ? "Ẩn mẫu thiết kế" : "Chọn mẫu thiết kế có sẵn"}
+           <Sparkles className="w-4 h-4 ml-2 text-primary" />
+         </Button>
+         
+         {showTemplates && (
+           <div className="grid grid-cols-4 gap-2 p-3 bg-secondary/30 rounded-lg max-h-48 overflow-y-auto">
+             {designTemplates.map((template) => (
+               <button
+                 key={template.id}
+                 onClick={() => applyTemplate(template)}
+                 className="group relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all hover:scale-105"
+               >
+                 <img 
+                   src={template.thumbnail} 
+                   alt={template.name}
+                   className="w-full h-full object-cover"
+                 />
+                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-1">
+                   <span className="text-white text-[10px] font-medium">{template.name}</span>
+                 </div>
+               </button>
+             ))}
+           </div>
+         )}
+       </div>
+ 
        {/* Toolbar */}
        <div className="flex flex-wrap gap-2 p-3 bg-secondary/50 rounded-lg">
          <Button variant="outline" size="sm" onClick={addTextElement}>
