@@ -13,8 +13,7 @@ import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Product } from "@/types/product";
-import { useAuth } from "@/contexts/AuthContext";
-import { SavedAddress } from "@/types/user";
+import { SavedAddress, User } from "@/types/user";
 
 interface CartItem extends Product {
   quantity: number;
@@ -34,9 +33,9 @@ const provinces = [
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, saveAddress, deleteAddress, getSavedAddresses } = useAuth();
   const cartItems: CartItem[] = location.state?.cartItems || [];
   const appliedDiscount = location.state?.discount || 0;
+  const [user, setUser] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -59,18 +58,76 @@ const Checkout = () => {
   const [saveThisAddress, setSaveThisAddress] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
+  // Helper functions for address management
+  const getSavedAddresses = (): SavedAddress[] => {
+    if (!user) return [];
+    return user.savedAddresses || [];
+  };
+
+  const saveAddress = (address: Omit<SavedAddress, 'id'>) => {
+    if (!user) return;
+    
+    const newAddress: SavedAddress = {
+      ...address,
+      id: `addr_${Date.now()}`,
+    };
+    
+    const currentAddresses = user.savedAddresses || [];
+    
+    let updatedAddresses = currentAddresses;
+    if (address.isDefault) {
+      updatedAddresses = currentAddresses.map(addr => ({ ...addr, isDefault: false }));
+    }
+    
+    if (updatedAddresses.length === 0) {
+      newAddress.isDefault = true;
+    }
+    
+    updatedAddresses.push(newAddress);
+    
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
+  const deleteAddress = (addressId: string) => {
+    if (!user) return;
+    
+    const currentAddresses = user.savedAddresses || [];
+    const updatedAddresses = currentAddresses.filter(addr => addr.id !== addressId);
+    
+    if (updatedAddresses.length > 0 && !updatedAddresses.some(addr => addr.isDefault)) {
+      updatedAddresses[0].isDefault = true;
+    }
+    
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   const savedAddresses = getSavedAddresses();
 
-  // Load default address when component mounts
+  // Load user from localStorage and default address on mount
   useEffect(() => {
-    if (user && savedAddresses.length > 0) {
-      const defaultAddress = savedAddresses.find(addr => addr.isDefault) || savedAddresses[0];
-      if (defaultAddress) {
-        loadAddress(defaultAddress);
-        setSelectedAddressId(defaultAddress.id);
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') {
+          setUser(parsed as User);
+          if (parsed.savedAddresses && parsed.savedAddresses.length > 0) {
+            const defaultAddress = parsed.savedAddresses.find((addr: SavedAddress) => addr.isDefault) || parsed.savedAddresses[0];
+            if (defaultAddress) {
+              loadAddress(defaultAddress);
+              setSelectedAddressId(defaultAddress.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Invalid user data', err);
       }
     }
-  }, [user]);
+  }, []);
 
   const loadAddress = (address: SavedAddress) => {
     setFormData({

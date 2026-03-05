@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingCart, User, Menu, X, ChevronDown, Crown, LogOut } from "lucide-react";
+import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { categories } from "@/data/products";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { MEMBERSHIP_LEVELS } from "@/types/user";
+import { MEMBERSHIP_LEVELS, User as UserType } from "@/types/user";
 import { toast } from "sonner";
 
 interface HeaderProps {
@@ -27,8 +26,30 @@ const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
   const cartCount = propCartCount ?? getCartCount();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { user, logout } = useAuth();
+  const [user, setUser] = useState<UserType | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const saved = localStorage.getItem('currentUser');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          setUser(parsed as UserType);
+        }
+      } catch (e) {
+        console.warn('invalid user in storage', e);
+      }
+    }
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('currentUser');
+    setUser(null);
+  };
+
+  // Safe first name (guard against missing/invalid user.name)
+  const firstName = user?.name && typeof user.name === 'string' ? user.name.split(' ')[0] : 'Khách';
 
   const handleLogout = () => {
     logout();
@@ -94,18 +115,18 @@ const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="hidden md:flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-full ${MEMBERSHIP_LEVELS[user.membershipLevel].color} flex items-center justify-center`}>
+                    <div className={`w-6 h-6 rounded-full ${MEMBERSHIP_LEVELS[user.membershipLevel ?? 'bronze']?.color || 'bg-amber-600'} flex items-center justify-center`}>
                       <Crown className="w-3 h-3 text-white" />
                     </div>
-                    <span className="text-sm">{user.name.split(' ')[0]}</span>
+                    <span className="text-sm">{firstName}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {user.points} điểm
+                      {user?.points ?? 0} điểm
                     </Badge>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-                    <User className="w-4 h-4 mr-2" />
+                    <UserIcon className="w-4 h-4 mr-2" />
                     Tài khoản
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/orders')} className="cursor-pointer">
@@ -120,7 +141,7 @@ const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
               </DropdownMenu>
             ) : (
               <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => navigate('/auth')}>
-                <User className="w-5 h-5" />
+                <UserIcon className="w-5 h-5" />
               </Button>
             )}
 

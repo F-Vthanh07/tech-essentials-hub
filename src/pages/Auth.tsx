@@ -1,19 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/services/AuthService";
 import { toast } from "sonner";
 import { Eye, EyeOff, Gift, Loader2, ArrowLeft } from "lucide-react";
+import { User } from "@/types/user";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { login, register, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -25,12 +26,40 @@ const Auth = () => {
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+  // OTP flow state
+  const [otpEmail, setOtpEmail] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
-  // Redirect if already logged in
-  if (user) {
-    navigate("/");
-    return null;
-  }
+  // Check if already logged in on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') {
+          setCurrentUser(parsed as User);
+          navigate("/");
+        }
+      } catch (err) {
+        console.warn('Invalid user data', err);
+      }
+    }
+  }, [navigate]);
+
+  // Helper function to save user to localStorage
+  const saveUser = (userData: User) => {
+    localStorage.setItem('currentUser', JSON.stringify(userData));
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const existingIndex = users.findIndex((u: User) => u.id === userData.id);
+    if (existingIndex >= 0) {
+      users[existingIndex] = userData;
+    } else {
+      users.push(userData);
+    }
+    localStorage.setItem('users', JSON.stringify(users));
+    setCurrentUser(userData);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,14 +69,40 @@ const Auth = () => {
     }
 
     setIsLoading(true);
-    const success = await login(loginEmail, loginPassword);
-    setIsLoading(false);
 
-    if (success) {
-      toast.success("Đăng nhập thành công!");
-      navigate("/");
-    } else {
-      toast.error("Email hoặc mật khẩu không đúng");
+    try {
+      const resp: any = await authService.login({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      const userData = resp?.user || resp;
+      if (userData && typeof userData === 'object') {
+        if (resp.token) {
+          localStorage.setItem('authToken', resp.token);
+        }
+        saveUser(userData as User);
+        toast.success("Đăng nhập thành công!");
+        navigate("/");
+      } else {
+        toast.error("Email hoặc mật khẩu không đúng");
+      }
+    } catch (err) {
+      console.warn('API login failed', err);
+      // Fallback: check localStorage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const passwords = JSON.parse(localStorage.getItem('passwords') || '{}');
+      const foundUser = users.find((u: User) => u.email === loginEmail);
+      
+      if (foundUser && passwords[loginEmail] === loginPassword) {
+        saveUser(foundUser);
+        toast.success("Đăng nhập thành công!");
+        navigate("/");
+      } else {
+        toast.error("Email hoặc mật khẩu không đúng");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -70,14 +125,68 @@ const Auth = () => {
     }
 
     setIsLoading(true);
-    const success = await register(registerEmail, registerPassword, registerName, registerPhone);
-    setIsLoading(false);
 
-    if (success) {
-      toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
-      navigate("/");
-    } else {
-      toast.error("Email đã được sử dụng");
+    try {
+      const resp: any = await authService.register({
+        email: registerEmail,
+        password: registerPassword,
+        name: registerName,
+        phone: registerPhone || undefined,
+      });
+
+      const userData = resp?.user || resp;
+
+      // If backend returns a user object immediately, save & proceed
+      if (userData && typeof userData === 'object') {
+        if (resp.token) {
+          localStorage.setItem('authToken', resp.token);
+        }
+        saveUser(userData as User);
+        toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
+        navigate("/");
+      } else {
+        // Assume backend sent OTP to email and returned a success message
+        setOtpEmail(registerEmail);
+        toast.success('Mã OTP đã được gửi tới email. Vui lòng kiểm tra và nhập mã.');
+      }
+    } catch (err) {
+      console.warn('API register failed', err);
+      // Fallback: check localStorage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const existingUser = users.find((u: User) => u.email === registerEmail);
+      
+      if (existingUser) {
+        toast.error("Email đã được sử dụng");
+      } else {
+        const newUser: User = {
+          id: `user_${Date.now()}`,
+          email: registerEmail,
+          name: registerName,
+          phone: registerPhone,
+          points: 100,
+          membershipLevel: 'bronze',
+          totalSpent: 0,
+          createdAt: new Date().toISOString(),
+        };
+        const passwords = JSON.parse(localStorage.getItem('passwords') || '{}');
+        passwords[registerEmail] = registerPassword;
+        localStorage.setItem('passwords', JSON.stringify(passwords));
+        const history = JSON.parse(localStorage.getItem('pointsHistory') || '[]');
+        history.push({
+          id: `ph_${Date.now()}`,
+          userId: newUser.id,
+          type: 'earn',
+          amount: 100,
+          description: 'Điểm thưởng chào mừng thành viên mới',
+          createdAt: new Date().toISOString(),
+        });
+        localStorage.setItem('pointsHistory', JSON.stringify(history));
+        saveUser(newUser);
+        toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
+        navigate("/");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -153,77 +262,132 @@ const Auth = () => {
                   <Gift className="h-5 w-5 text-primary" />
                   <span className="text-sm">Đăng ký ngay để nhận <strong>100 điểm</strong> thưởng!</span>
                 </div>
-
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-name">Họ và tên *</Label>
-                    <Input
-                      id="register-name"
-                      placeholder="Nguyễn Văn A"
-                      value={registerName}
-                      onChange={(e) => setRegisterName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email *</Label>
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="email@example.com"
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-phone">Số điện thoại</Label>
-                    <Input
-                      id="register-phone"
-                      placeholder="0901234567"
-                      value={registerPhone}
-                      onChange={(e) => setRegisterPhone(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Mật khẩu *</Label>
-                    <div className="relative">
+                {!otpEmail ? (
+                  <form onSubmit={handleRegister} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="register-name">Họ và tên *</Label>
                       <Input
-                        id="register-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Tối thiểu 6 ký tự"
-                        value={registerPassword}
-                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        id="register-name"
+                        placeholder="Nguyễn Văn A"
+                        value={registerName}
+                        onChange={(e) => setRegisterName(e.target.value)}
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-email">Email *</Label>
+                      <Input
+                        id="register-email"
+                        type="email"
+                        placeholder="email@example.com"
+                        value={registerEmail}
+                        onChange={(e) => setRegisterEmail(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-phone">Số điện thoại</Label>
+                      <Input
+                        id="register-phone"
+                        placeholder="0901234567"
+                        value={registerPhone}
+                        onChange={(e) => setRegisterPhone(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password">Mật khẩu *</Label>
+                      <div className="relative">
+                        <Input
+                          id="register-password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Tối thiểu 6 ký tự"
+                          value={registerPassword}
+                          onChange={(e) => setRegisterPassword(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-confirm-password">Xác nhận mật khẩu *</Label>
+                      <Input
+                        id="register-confirm-password"
+                        type="password"
+                        placeholder="Nhập lại mật khẩu"
+                        value={registerConfirmPassword}
+                        onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                      />
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Đăng ký
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-sm">Một mã OTP đã được gửi tới <strong>{otpEmail}</strong>. Nhập mã để xác thực.</div>
+                    <div className="space-y-2">
+                      <Label htmlFor="otp-code">Mã OTP</Label>
+                      <Input id="otp-code" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} />
+                    </div>
+                    <div className="flex gap-2">
                       <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={async () => {
+                          if (!otpEmail) return;
+                          setIsVerifyingOtp(true);
+                          try {
+                            const resp: any = await authService.verifyOtp({ email: otpEmail, otpCode: otpCode });
+                            const userData = resp?.user || resp;
+                            if (userData && typeof userData === 'object') {
+                              if (resp.token) localStorage.setItem('authToken', resp.token);
+                              saveUser(userData as User);
+                              toast.success('Xác thực thành công, bạn đã đăng nhập.');
+                              navigate('/');
+                            } else {
+                              toast.success('Xác thực thành công. Vui lòng đăng nhập.');
+                              setOtpEmail(null);
+                              navigate('/auth');
+                            }
+                          } catch (err) {
+                            console.warn('verifyOtp error', err);
+                            toast.error('Xác thực thất bại. Vui lòng thử lại.');
+                          } finally {
+                            setIsVerifyingOtp(false);
+                          }
+                        }}
+                        className="flex-1"
+                        disabled={isVerifyingOtp}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        Xác thực
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          if (!otpEmail) return;
+                          try {
+                            await authService.resendOtp({ email: otpEmail });
+                            toast.success('Mã OTP đã được gửi lại.');
+                          } catch (err) {
+                            console.warn('resendOtp error', err);
+                            toast.error('Không gửi được mã OTP.');
+                          }
+                        }}
+                      >
+                        Gửi lại
                       </Button>
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-confirm-password">Xác nhận mật khẩu *</Label>
-                    <Input
-                      id="register-confirm-password"
-                      type="password"
-                      placeholder="Nhập lại mật khẩu"
-                      value={registerConfirmPassword}
-                      onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                    />
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Đăng ký
-                  </Button>
-                </form>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,10 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { MEMBERSHIP_LEVELS } from '@/types/user';
-import { toast } from 'sonner';
-import { SavedAddress } from '@/types/user';
-import { 
+import {
   User, 
   Crown, 
   Star, 
@@ -30,6 +26,8 @@ import {
   Trash2,
   Check
 } from 'lucide-react';
+import { User as UserType, MEMBERSHIP_LEVELS, PointsHistory, SavedAddress } from '@/types/user';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -40,10 +38,10 @@ import {
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, updateUser, logout, getPointsHistory } = useAuth();
+  const [user, setUser] = useState<UserType | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(user?.name || '');
-  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   
   // Address management state
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
@@ -58,6 +56,52 @@ const Profile: React.FC = () => {
     address: '',
     isDefault: false,
   });
+
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') {
+          setUser(parsed as UserType);
+          setEditName(parsed.name || '');
+          setEditPhone(parsed.phone || '');
+        }
+      } catch (err) {
+        console.warn('Invalid user data', err);
+      }
+    }
+  }, []);
+
+  // Helper function to update user
+  const updateUser = (updates: Partial<UserType>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...updates };
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const existingIndex = users.findIndex((u: UserType) => u.id === updatedUser.id);
+    if (existingIndex >= 0) {
+      users[existingIndex] = updatedUser;
+    } else {
+      users.push(updatedUser);
+    }
+    localStorage.setItem('users', JSON.stringify(users));
+    setUser(updatedUser);
+  };
+
+  // Helper function to logout
+  const logout = () => {
+    localStorage.removeItem('currentUser');
+    setUser(null);
+  };
+
+  // Helper function to get points history
+  const getPointsHistory = (): PointsHistory[] => {
+    if (!user) return [];
+    const history = JSON.parse(localStorage.getItem('pointsHistory') || '[]');
+    return history.filter((h: PointsHistory) => h.userId === user.id);
+  };
 
   if (!user) {
     navigate('/');
