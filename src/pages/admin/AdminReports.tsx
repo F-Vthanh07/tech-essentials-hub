@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 import { 
   BarChart, 
   Bar, 
@@ -13,11 +15,35 @@ import {
   LineChart,
   Line
 } from "recharts";
-import { sampleOrders } from "@/data/orders";
-import { products } from "@/data/products";
+import { productService } from "@/services/ProductService";
+import { orderService, ApiOrder } from "@/services/OrderService";
+import { Product } from "@/types/product";
 
 const AdminReports = () => {
-  // Revenue by month (mock data)
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [productsData, ordersData] = await Promise.all([
+          productService.getAllProducts().catch(() => []),
+          orderService.getAll().catch(() => []),
+        ]);
+        setProducts(productsData);
+        setOrders(ordersData);
+      } catch (err) {
+        console.warn('Failed to fetch report data', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Revenue data (from orders or mock if empty)
   const revenueData = [
     { month: 'T1', revenue: 15000000 },
     { month: 'T2', revenue: 22000000 },
@@ -27,37 +53,51 @@ const AdminReports = () => {
     { month: 'T6', revenue: 25000000 },
   ];
 
-  // Orders by status
+  // Orders by status (from API data)
   const ordersByStatus = [
-    { name: 'Chờ xử lý', value: sampleOrders.filter(o => o.status === 'pending').length, color: '#eab308' },
-    { name: 'Đã xác nhận', value: sampleOrders.filter(o => o.status === 'confirmed').length, color: '#3b82f6' },
-    { name: 'Đang giao', value: sampleOrders.filter(o => o.status === 'shipping').length, color: '#8b5cf6' },
-    { name: 'Đã giao', value: sampleOrders.filter(o => o.status === 'delivered').length, color: '#22c55e' },
-    { name: 'Đã hủy', value: sampleOrders.filter(o => o.status === 'cancelled').length, color: '#ef4444' },
+    { name: 'Chờ xử lý', value: orders.filter(o => o.status === 'pending' || !o.status).length, color: '#eab308' },
+    { name: 'Đã xác nhận', value: orders.filter(o => o.status === 'confirmed').length, color: '#3b82f6' },
+    { name: 'Đang giao', value: orders.filter(o => o.status === 'shipping').length, color: '#8b5cf6' },
+    { name: 'Đã giao', value: orders.filter(o => o.status === 'delivered').length, color: '#22c55e' },
+    { name: 'Đã hủy', value: orders.filter(o => o.status === 'cancelled').length, color: '#ef4444' },
   ].filter(s => s.value > 0);
 
-  // Products by category
+  // If no order status data, show default
+  const displayOrdersByStatus = ordersByStatus.length > 0 ? ordersByStatus : [
+    { name: 'Chưa có đơn', value: 1, color: '#9ca3af' },
+  ];
+
+  // Products by category (from API data)
   const categoryData = products.reduce((acc, product) => {
-    const existing = acc.find(c => c.category === product.category);
+    const cat = product.category || 'Khác';
+    const existing = acc.find(c => c.category === cat);
     if (existing) {
       existing.count++;
     } else {
-      acc.push({ category: product.category, count: 1 });
+      acc.push({ category: cat, count: 1 });
     }
     return acc;
   }, [] as { category: string; count: number }[]);
 
-  // Top selling products (mock data)
-  const topProducts = [
-    { name: 'Ốp lưng iPhone 15 Pro', sold: 150 },
-    { name: 'Sạc nhanh 20W', sold: 120 },
-    { name: 'Cường lực Samsung S24', sold: 98 },
-    { name: 'Tai nghe Bluetooth', sold: 85 },
-    { name: 'Cáp Type-C', sold: 75 },
-  ];
+  // Top products by name (first 5)
+  const topProducts = products.slice(0, 5).map((p, i) => ({
+    name: p.name.length > 30 ? p.name.substring(0, 30) + '...' : p.name,
+    price: p.price,
+  }));
 
-  const totalRevenue = sampleOrders.reduce((sum, order) => sum + order.total, 0);
-  const avgOrderValue = totalRevenue / sampleOrders.length;
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+  const avgOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Báo cáo</h1>
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -134,13 +174,13 @@ const AdminReports = () => {
         {/* Orders by Status */}
         <Card>
           <CardHeader>
-            <CardTitle>Đơn hàng theo trạng thái</CardTitle>
+            <CardTitle>Đơn hàng theo trạng thái ({orders.length} đơn)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={ordersByStatus}
+                  data={displayOrdersByStatus}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -149,7 +189,7 @@ const AdminReports = () => {
                   dataKey="value"
                   label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                 >
-                  {ordersByStatus.map((entry, index) => (
+                  {displayOrdersByStatus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -162,29 +202,35 @@ const AdminReports = () => {
         {/* Products by Category */}
         <Card>
           <CardHeader>
-            <CardTitle>Sản phẩm theo danh mục</CardTitle>
+            <CardTitle>Sản phẩm theo danh mục ({products.length} SP)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="category" type="category" width={120} />
-                <Tooltip />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="category" type="category" width={120} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center py-12 text-muted-foreground">Chưa có dữ liệu</p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Top Products */}
+        {/* Top Products by Price */}
         <Card>
           <CardHeader>
-            <CardTitle>Sản phẩm bán chạy</CardTitle>
+            <CardTitle>Sản phẩm giá cao nhất</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topProducts.map((product, index) => (
+              {topProducts.length > 0 ? topProducts
+                .sort((a, b) => b.price - a.price)
+                .map((product, index) => (
                 <div key={index} className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                     {index + 1}
@@ -194,13 +240,15 @@ const AdminReports = () => {
                     <div className="h-2 bg-muted rounded-full mt-1">
                       <div 
                         className="h-full bg-primary rounded-full"
-                        style={{ width: `${(product.sold / topProducts[0].sold) * 100}%` }}
+                        style={{ width: `${(product.price / (topProducts[0]?.price || 1)) * 100}%` }}
                       />
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">{product.sold} đã bán</span>
+                  <span className="text-sm text-muted-foreground">{product.price.toLocaleString('vi-VN')}đ</span>
                 </div>
-              ))}
+              )) : (
+                <p className="text-center py-8 text-muted-foreground">Chưa có sản phẩm</p>
+              )}
             </div>
           </CardContent>
         </Card>

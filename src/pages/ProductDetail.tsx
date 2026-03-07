@@ -12,6 +12,7 @@ import {
   Check,
   Minus,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,105 +23,36 @@ import FloatingContact from "@/components/FloatingContact";
 import ProductGallery from "@/components/ProductGallery";
 import RelatedProducts from "@/components/RelatedProducts";
 import { products } from "@/data/products";
+import { productService } from "@/services/ProductService";
 import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 
 // Extended product data with gallery and description
 const getProductDetails = (product: Product) => {
-  const galleryImages = [
-    product.image,
-    product.image.replace("w=400", "w=401"),
-    product.image.replace("w=400", "w=402"),
-    product.image.replace("w=400", "w=403"),
-  ];
+  const galleryImages = product.colorVariants && product.colorVariants.length > 0
+    ? product.colorVariants
+        .filter(v => v.image)
+        .map(v => v.image!)
+        .filter((img, idx, arr) => arr.indexOf(img) === idx) // unique
+    : [
+        product.image,
+        product.image.replace("w=400", "w=401"),
+        product.image.replace("w=400", "w=402"),
+        product.image.replace("w=400", "w=403"),
+      ];
 
-  const descriptions: Record<string, string> = {
-    cases: `Ốp lưng cao cấp được thiết kế đặc biệt để bảo vệ tối đa cho thiết bị của bạn. 
-    
-Với công nghệ chống sốc tiên tiến, sản phẩm có khả năng hấp thụ lực va đập hiệu quả, bảo vệ điện thoại khỏi những cú rơi từ độ cao lên đến 4 mét. Thiết kế tinh tế với các đường nét góc cạnh tạo nên vẻ ngoài mạnh mẽ nhưng không kém phần sang trọng.
-
-**Đặc điểm nổi bật:**
-• Chất liệu cao cấp, bền bỉ theo thời gian
-• Thiết kế vừa vặn hoàn hảo với thiết bị
-• Các nút bấm có phản hồi tốt, dễ sử dụng
-• Hỗ trợ sạc không dây và MagSafe
-• Lỗ khoét camera chính xác, không che phủ flash
-
-Sản phẩm được bảo hành chính hãng 12 tháng với chính sách đổi trả dễ dàng trong 30 ngày đầu tiên.`,
-
-    chargers: `Bộ sạc công nghệ GaN thế hệ mới nhất mang đến hiệu suất sạc vượt trội với kích thước nhỏ gọn đáng kinh ngạc.
-
-Công nghệ Gallium Nitride (GaN) giúp giảm nhiệt độ hoạt động, tăng hiệu suất chuyển đổi năng lượng lên đến 93%, đồng thời giảm kích thước đến 40% so với bộ sạc truyền thống cùng công suất.
-
-**Đặc điểm nổi bật:**
-• Công suất đầu ra tối đa, sạc nhanh cho mọi thiết bị
-• Nhiều cổng sạc, hỗ trợ sạc đồng thời nhiều thiết bị
-• Công nghệ PowerIQ tự động nhận diện thiết bị
-• Thiết kế gập gọn, tiện lợi mang theo
-• Bảo vệ quá nhiệt, quá dòng, quá áp
-
-Bảo hành chính hãng 18 tháng cùng chế độ đổi trả 30 ngày.`,
-
-    bags: `Túi đựng laptop cao cấp với khả năng bảo vệ toàn diện 360 độ cho thiết bị của bạn.
-
-Được chế tạo từ vật liệu chống nước cao cấp với lớp lót nhung mềm mại bên trong, túi mang đến sự bảo vệ tối ưu cho laptop khỏi va đập, trầy xước và ẩm ướt.
-
-**Đặc điểm nổi bật:**
-• Chất liệu ngoài chống nước, chống bám bẩn
-• Lớp đệm EVA chống sốc ở tất cả các mặt
-• Khóa kéo YKK bền bỉ, mượt mà
-• Ngăn phụ tiện lợi cho phụ kiện
-• Thiết kế thanh lịch, phù hợp môi trường công sở
-
-Bảo hành 24 tháng với chính sách đổi mới nếu lỗi sản xuất.`,
-
-    audio: `Tai nghe không dây cao cấp với công nghệ chống ồn chủ động (ANC) thế hệ mới.
-
-Trải nghiệm âm thanh Hi-Res Audio với codec LDAC, mang đến chất lượng âm thanh studio ngay trong tai bạn. Công nghệ ANC 2.0 loại bỏ đến 98% tiếng ồn môi trường.
-
-**Đặc điểm nổi bật:**
-• Chống ồn chủ động ANC thích ứng
-• Driver dynamic cao cấp cho âm bass sâu
-• Thời lượng pin lên đến 50 giờ
-• Kết nối đa điểm với 2 thiết bị cùng lúc
-• Điều khiển cảm ứng thông minh
-• Chống nước IPX4
-
-Bảo hành 12 tháng chính hãng.`,
-
-    screen: `Kính cường lực bảo vệ màn hình với độ cứng 9H chống trầy xước tuyệt đối.
-
-Được sản xuất bằng công nghệ Nhật Bản, kính có độ trong suốt 99.9%, không ảnh hưởng đến chất lượng hiển thị và độ nhạy cảm ứng của màn hình.
-
-**Đặc điểm nổi bật:**
-• Độ cứng 9H chống trầy xước
-• Lớp phủ oleophobic chống bám vân tay
-• Dụng cụ dán EZ Fit, tự dán trong 30 giây
-• Viền đen che khuyết điểm hoàn hảo
-• Bộ sản phẩm gồm 2 miếng dán
-
-Bảo hành vỡ miễn phí trong 6 tháng đầu tiên.`,
-
-    stands: `Giá đỡ thiết bị đa năng với thiết kế tinh tế, phù hợp mọi không gian làm việc.
-
-Được chế tạo từ hợp kim nhôm cao cấp, giá đỡ có khả năng điều chỉnh góc nghiêng linh hoạt, giúp bạn có tư thế làm việc thoải mái nhất.
-
-**Đặc điểm nổi bật:**
-• Chất liệu hợp kim nhôm nguyên khối
-• Điều chỉnh góc nghiêng 0-60 độ
-• Đế cao su chống trượt
-• Hỗ trợ thiết bị từ 4-13 inch
-• Gấp gọn, tiện mang theo
-
-Bảo hành 12 tháng chính hãng.`,
-  };
+  // If we only have one image, add some duplicates for gallery
+  if (galleryImages.length < 2) {
+    galleryImages.push(product.image);
+    galleryImages.push(product.image.replace("w=400", "w=401"));
+  }
 
   return {
     ...product,
     images: galleryImages,
     description:
-      descriptions[product.category] ||
+      product.description ||
       `Sản phẩm chính hãng ${product.brand} với chất lượng cao cấp và thiết kế tinh tế.`,
   };
 };
@@ -131,8 +63,37 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
+  const [product, setProduct] = useState<Product | null | undefined>(undefined);
+  const [allProducts, setAllProducts] = useState<Product[]>(products);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const product = products.find((p) => p.id === id);
+  // Fetch product from API
+  useEffect(() => {
+    const fetchProduct = async () => {
+      setIsLoading(true);
+      try {
+        // Try API first
+        const apiProduct = await productService.getProductById(id!);
+        if (apiProduct) {
+          setProduct(apiProduct);
+          // Also fetch all products for related products
+          const allApiProducts = await productService.getAllProducts();
+          if (allApiProducts.length > 0) setAllProducts(allApiProducts);
+        } else {
+          // Fallback to mock data
+          const mockProduct = products.find((p) => p.id === id) || null;
+          setProduct(mockProduct);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch product from API, using mock data', err);
+        const mockProduct = products.find((p) => p.id === id) || null;
+        setProduct(mockProduct);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProduct();
+  }, [id]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -142,7 +103,19 @@ const ProductDetail = () => {
     } else {
       setSelectedColor(null);
     }
-  }, [id, product]);
+  }, [product]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-20 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -162,7 +135,7 @@ const ProductDetail = () => {
   const productDetails = getProductDetails(product);
 
   // Get related products (same category or brand, excluding current product)
-  const relatedProducts = products
+  const relatedProducts = allProducts
     .filter(
       (p) =>
         p.id !== product.id &&

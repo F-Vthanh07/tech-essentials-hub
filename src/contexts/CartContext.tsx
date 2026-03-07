@@ -6,6 +6,7 @@ export interface CartItem {
   product: Product;
   selectedColor?: ColorVariant;
   quantity: number;
+  variantId?: string; // Backend variant ID for order creation
 }
 
 interface CartContextType {
@@ -40,7 +41,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         );
       }
       
-      return [...prev, { id: itemId, product, selectedColor, quantity }];
+      // Determine variantId: selectedColor.id (which is variant ID from API) or product.variantId
+      const variantId = selectedColor?.id || product.variantId;
+      
+      return [...prev, { id: itemId, product, selectedColor, quantity, variantId }];
     });
   };
 

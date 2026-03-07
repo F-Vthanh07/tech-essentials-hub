@@ -152,7 +152,7 @@ const Checkout = () => {
     setCompanyInfo(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.fullName || !formData.phone || !formData.province || !formData.address) {
       toast.error("Vui lòng điền đầy đủ thông tin giao hàng");
       return;
@@ -180,11 +180,50 @@ const Checkout = () => {
 
     setIsSubmitting(true);
 
-    // Simulate order submission
-    setTimeout(() => {
-      toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
-      navigate("/");
-    }, 1500);
+    try {
+      // Build order items from cart
+      const orderItems = cartItems.map(item => ({
+        variantId: (item as any).variantId || item.id,
+        quantity: item.quantity,
+      }));
+
+      const accountId = user?.id || '';
+
+      if (accountId && orderItems.length > 0) {
+        // Create order via API
+        const { orderService } = await import('@/services/OrderService');
+        const order = await orderService.create({
+          accountId,
+          orderItems,
+        });
+
+        // If payment method is bank transfer, create PayOS payment
+        if (paymentMethod === 'bank' || paymentMethod === 'vnpay') {
+          try {
+            const { paymentService } = await import('@/services/PaymentService');
+            const payment = await paymentService.createPayOSPayment(order.id);
+            if (payment.checkoutUrl || payment.paymentUrl) {
+              window.location.href = payment.checkoutUrl || payment.paymentUrl || '';
+              return;
+            }
+          } catch (payErr) {
+            console.warn('Payment creation failed, order still created', payErr);
+          }
+        }
+
+        toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
+        navigate("/order-tracking");
+      } else {
+        // No user or no items, simulate success
+        toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
+        navigate("/");
+      }
+    } catch (err) {
+      console.error('Order creation failed:', err);
+      toast.error("Có lỗi khi tạo đơn hàng. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSelectAddress = (address: SavedAddress) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   Package, 
@@ -12,7 +12,8 @@ import {
   Search,
   Calendar,
   CreditCard,
-  XCircle
+  XCircle,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
 import { sampleOrders, getOrderStatusSteps } from "@/data/orders";
 import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
@@ -283,11 +285,75 @@ const OrderCard = ({ order, isExpanded, onToggle }: {
 };
 
 const OrderTracking = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(sampleOrders[0]?.id || null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [orders, setOrders] = useState<Order[]>(sampleOrders);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filteredOrders = sampleOrders.filter(order => {
+  // Fetch orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!user?.id) {
+        setOrders(sampleOrders);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const { orderService } = await import('@/services/OrderService');
+        const apiOrders = await orderService.getMyOrders(user.id);
+        if (apiOrders && apiOrders.length > 0) {
+          // Map API orders to frontend Order format
+          const mapped: Order[] = apiOrders.map((o: any, index: number) => ({
+            id: o.id,
+            orderNumber: `ORD-${String(index + 1).padStart(3, '0')}`,
+            status: o.status || 'pending',
+            createdAt: o.createdAt || new Date().toISOString(),
+            items: (o.orderItems || []).map((item: any) => ({
+              product: {
+                id: item.variantId,
+                name: item.variantName || `Sản phẩm #${item.variantId?.slice(0, 8)}`,
+                image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop',
+                price: item.price || 0,
+              },
+              quantity: item.quantity,
+              price: item.price || 0,
+            })),
+            total: o.totalAmount || 0,
+            subtotal: o.totalAmount || 0,
+            shippingFee: 0,
+            discount: 0,
+            paymentMethod: 'Thanh toán online',
+            shippingAddress: {
+              fullName: user.name || 'N/A',
+              phone: user.phone || 'N/A',
+              address: 'N/A',
+              district: '',
+              province: '',
+              ward: '',
+            },
+            deliveryDate: 'Đang xử lý',
+            deliveryTime: 'N/A',
+          }));
+          setOrders(mapped);
+          if (mapped.length > 0) setExpandedOrderId(mapped[0].id);
+        } else {
+          setOrders(sampleOrders);
+          if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch orders from API', err);
+        setOrders(sampleOrders);
+        if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, [user]);
+
+  const filteredOrders = orders.filter(order => {
     const matchesSearch = order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           order.trackingNumber?.toLowerCase().includes(searchQuery.toLowerCase());
     

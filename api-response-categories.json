@@ -1,0 +1,19 @@
+{
+  "totalCount": 13,
+  "sampleRecords": [
+    {
+      "id": "460f8bfd-b083-4e46-8a95-94ce47dc213b",
+      "parentId": null,
+      "name": "Op lung",
+      "slug": "op-lung",
+      "parentName": null
+    },
+    {
+      "id": "54326f0f-6f96-4d48-acaa-33804a06e7c1",
+      "parentId": null,
+      "name": "Op lung",
+      "slug": "op-lung",
+      "parentName": null
+    }
+  ]
+}
