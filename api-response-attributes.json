@@ -1,0 +1,15 @@
+{
+  "totalCount": 10,
+  "sampleRecords": [
+    {
+      "id": "5ec840b7-5215-49fc-a136-b0d429e304d7",
+      "name": "Material",
+      "dataType": "string"
+    },
+    {
+      "id": "5974332f-1a6a-46fe-b45c-6cf9c14e9aff",
+      "name": "Weight",
+      "dataType": "string"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "totalCount": 13,
+  "sampleRecords": [
+    {
+      "id": "62937cbc-fa0a-4614-8e4b-6bfec9611a53",
+      "name": "Apple",
+      "description": "Apple Inc.",
+      "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
+    },
+    {
+      "id": "0495591c-1334-467d-bc77-c8d7c9219e0e",
+      "name": "UAG",
+      "description": "Urban Armor Gear - Premium protection",
+      "logoUrl": "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=100&h=100&fit=crop"
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { brandService } from "@/services/BrandService";
 import { Brand } from "@/services/BrandService";
+import { categoryService } from "@/services/CategoryService";
+import { deviceService } from "@/services/DeviceService";
+import { ApiCategory, ApiDevice } from "@/types/product";
 import { ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,19 +31,33 @@ interface ProductFilterProps {
 const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
   const [openSections, setOpenSections] = useState<string[]>(["brands", "categories"]);
   const [apiBrands, setApiBrands] = useState<Brand[]>([]);
+  const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
+  const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
+
   const displayBrands = apiBrands.length > 0 ? apiBrands : brands;
+  const displayCategories = apiCategories.length > 0
+    ? apiCategories.map(c => ({ id: c.id, name: c.name, icon: 'Smartphone' }))
+    : categories;
+  const displayDevices = apiDevices.length > 0
+    ? apiDevices.map(d => d.name)
+    : devices;
 
   useEffect(() => {
-    const fetchBrands = async () => {
+    const fetchFilters = async () => {
       try {
-        const data = await brandService.getAll();
-        setApiBrands(data);
+        const [brandsData, categoriesData, devicesData] = await Promise.all([
+          brandService.getAll(),
+          categoryService.getAll(),
+          deviceService.getAll(),
+        ]);
+        if (brandsData.length > 0) setApiBrands(brandsData);
+        if (categoriesData.length > 0) setApiCategories(categoriesData);
+        if (devicesData.length > 0) setApiDevices(devicesData);
       } catch (err) {
-        console.warn('Failed to fetch brands from API', err);
-        // Fallback to static brands
+        console.warn('Failed to fetch filter data from API', err);
       }
     };
-    fetchBrands();
+    fetchFilters();
   }, []);
 
   const toggleSection = (section: string) => {
@@ -111,7 +128,7 @@ const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
           ))}
           {filters.categories.map((cat) => (
             <Badge key={cat} variant="secondary" className="gap-1">
-              {categories.find((c) => c.id === cat)?.name}
+              {displayCategories.find((c) => c.id === cat)?.name || cat}
               <X
                 className="w-3 h-3 cursor-pointer"
                 onClick={() => toggleCategory(cat)}
@@ -173,14 +190,14 @@ const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
           />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-2">
-          {categories.map((cat) => (
+          {displayCategories.map((cat) => (
             <label
               key={cat.id}
               className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
             >
               <Checkbox
-                checked={filters.categories.includes(cat.id)}
-                onCheckedChange={() => toggleCategory(cat.id)}
+                checked={filters.categories.includes(cat.id) || filters.categories.includes(cat.name)}
+                onCheckedChange={() => toggleCategory(cat.name)}
               />
               <span className="text-sm">{cat.name}</span>
             </label>
@@ -202,7 +219,7 @@ const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
           />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-2 max-h-48 overflow-y-auto">
-          {devices.map((device) => (
+          {displayDevices.map((device) => (
             <label
               key={device}
               className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"

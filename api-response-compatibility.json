@@ -1,0 +1,21 @@
+{
+  "totalCount": 20,
+  "sampleRecords": [
+    {
+      "id": "832058a8-9008-4e6d-8996-6322657f2d74",
+      "productId": "9d5f9d2b-cc39-477c-8c18-66373824b07e",
+      "productName": null,
+      "deviceId": "ca97c28e-898f-4596-9f37-d64f1c6ed412",
+      "deviceName": null,
+      "note": "Perfect fit"
+    },
+    {
+      "id": "16c3302e-85ed-4b59-9147-51e08fdca15e",
+      "productId": "0b08468c-aa41-4c71-b2f1-b2eef1173c14",
+      "productName": null,
+      "deviceId": "4589e7bf-8726-4e04-a1ba-c188410d9ce5",
+      "deviceName": null,
+      "note": "Works with all USB-C devices"
+    }
+  ]
+}

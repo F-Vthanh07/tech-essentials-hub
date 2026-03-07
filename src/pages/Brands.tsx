@@ -1,39 +1,72 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Building2, Search } from "lucide-react";
+import { Building2, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { products } from "@/data/products";
+import { products as mockProducts } from "@/data/products";
+import { brandService } from "@/services/BrandService";
+import { Brand } from "@/services/BrandService";
+import { productService } from "@/services/ProductService";
+import { Product } from "@/types/product";
 
 const Brands = () => {
   const [cartCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [apiBrands, setApiBrands] = useState<Brand[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>(mockProducts);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Extract unique brands from products
-  const brands = [...new Set(products.map(p => p.brand))].filter(Boolean);
-  
-  // Count products per brand
-  const brandData = brands.map(brand => ({
-    name: brand,
-    productCount: products.filter(p => p.brand === brand).length,
-    logo: `/placeholder.svg`, // Placeholder logo
-  }));
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [brandsData, productsData] = await Promise.all([
+          brandService.getAll(),
+          productService.getAllProducts().catch(() => []),
+        ]);
+        if (brandsData.length > 0) setApiBrands(brandsData);
+        if (productsData.length > 0) setAllProducts(productsData);
+      } catch (err) {
+        console.warn('Failed to fetch brands from API', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Build brand data from API or mock products
+  const brandData = apiBrands.length > 0
+    ? apiBrands.map(brand => ({
+        id: brand.id,
+        name: brand.name || '',
+        productCount: allProducts.filter(p => p.brand === brand.name).length,
+        logo: brand.logoUrl || brand.logo || `/placeholder.svg`,
+        description: brand.description || '',
+      }))
+    : [...new Set(mockProducts.map(p => p.brand))].filter(Boolean).map(brand => ({
+        id: brand,
+        name: brand,
+        productCount: mockProducts.filter(p => p.brand === brand).length,
+        logo: `/placeholder.svg`,
+        description: '',
+      }));
 
   const filteredBrands = brandData.filter(brand => 
     brand.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Featured brands
-  const featuredBrands = [
-    { name: "Apple", description: "Think Different", color: "bg-gray-100" },
-    { name: "Samsung", description: "Do What You Can't", color: "bg-blue-50" },
-    { name: "Sony", description: "Be Moved", color: "bg-purple-50" },
-    { name: "Dell", description: "Technologies", color: "bg-cyan-50" },
-    { name: "Asus", description: "In Search of Incredible", color: "bg-red-50" },
-    { name: "Logitech", description: "For Those Who Dare", color: "bg-green-50" },
-  ];
+  // Featured brands (first 6)
+  const featuredBrands = brandData.slice(0, 6).map((brand, index) => {
+    const colors = ["bg-gray-100", "bg-blue-50", "bg-purple-50", "bg-cyan-50", "bg-red-50", "bg-green-50"];
+    return {
+      name: brand.name,
+      description: brand.description || brand.name,
+      color: colors[index % colors.length],
+    };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,61 +99,69 @@ const Brands = () => {
           </div>
         </div>
 
-        {/* Featured Brands */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Thương Hiệu Nổi Bật</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {featuredBrands.map((brand) => (
-              <Link 
-                key={brand.name} 
-                to={`/?brand=${brand.name.toLowerCase()}`}
-                className="block"
-              >
-                <Card className={`${brand.color} hover:shadow-lg transition-all hover:-translate-y-1`}>
-                  <CardContent className="p-6 text-center">
-                    <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-xl font-bold text-foreground">{brand.name.charAt(0)}</span>
-                    </div>
-                    <h3 className="font-semibold">{brand.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{brand.description}</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        </section>
+        ) : (
+          <>
+            {/* Featured Brands */}
+            <section className="mb-10">
+              <h2 className="text-xl font-semibold mb-4">Thương Hiệu Nổi Bật</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {featuredBrands.map((brand) => (
+                  <Link 
+                    key={brand.name} 
+                    to={`/?brand=${brand.name.toLowerCase()}`}
+                    className="block"
+                  >
+                    <Card className={`${brand.color} hover:shadow-lg transition-all hover:-translate-y-1`}>
+                      <CardContent className="p-6 text-center">
+                        <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-sm">
+                          <span className="text-xl font-bold text-foreground">{brand.name.charAt(0)}</span>
+                        </div>
+                        <h3 className="font-semibold">{brand.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">{brand.description}</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </section>
 
-        {/* All Brands Grid */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Tất Cả Thương Hiệu ({filteredBrands.length})</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filteredBrands.map((brand) => (
-              <Link 
-                key={brand.name} 
-                to={`/?brand=${brand.name.toLowerCase()}`}
-                className="block"
-              >
-                <Card className="hover:shadow-md transition-shadow hover:border-primary">
-                  <CardContent className="p-4 text-center">
-                    <div className="w-12 h-12 mx-auto mb-2 bg-secondary rounded-lg flex items-center justify-center">
-                      <span className="text-lg font-bold text-primary">{brand.name.charAt(0)}</span>
-                    </div>
-                    <h3 className="font-medium text-sm">{brand.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {brand.productCount} sản phẩm
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-          
-          {filteredBrands.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              Không tìm thấy thương hiệu phù hợp
-            </div>
-          )}
-        </section>
+            {/* All Brands Grid */}
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Tất Cả Thương Hiệu ({filteredBrands.length})</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {filteredBrands.map((brand) => (
+                  <Link 
+                    key={brand.id} 
+                    to={`/?brand=${brand.name.toLowerCase()}`}
+                    className="block"
+                  >
+                    <Card className="hover:shadow-md transition-shadow hover:border-primary">
+                      <CardContent className="p-4 text-center">
+                        <div className="w-12 h-12 mx-auto mb-2 bg-secondary rounded-lg flex items-center justify-center">
+                          <span className="text-lg font-bold text-primary">{brand.name.charAt(0)}</span>
+                        </div>
+                        <h3 className="font-medium text-sm">{brand.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {brand.productCount} sản phẩm
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+              
+              {filteredBrands.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  Không tìm thấy thương hiệu phù hợp
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
 
       <Footer />
@@ -129,3 +170,4 @@ const Brands = () => {
 };
 
 export default Brands;
+

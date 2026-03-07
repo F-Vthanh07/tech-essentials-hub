@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Grid3X3, List } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Grid3X3, List, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,7 +11,8 @@ import {
 import ProductCard from "./ProductCard";
 import ProductFilter from "./ProductFilter";
 import QuickViewModal from "./QuickViewModal";
-import { products } from "@/data/products";
+import { products as mockProducts } from "@/data/products";
+import { productService } from "@/services/ProductService";
 import { Product, FilterState } from "@/types/product";
 
 interface ProductGridProps {
@@ -22,6 +23,8 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("featured");
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>(mockProducts);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<FilterState>({
     brands: [],
     categories: [],
@@ -29,8 +32,30 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
     priceRange: [0, 10000000],
   });
 
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setIsLoading(true);
+      try {
+        const apiProducts = await productService.getAllProducts();
+        if (apiProducts.length > 0) {
+          setAllProducts(apiProducts);
+        } else {
+          // Fallback to mock data if API returns empty
+          setAllProducts(mockProducts);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch products from API, using mock data', err);
+        setAllProducts(mockProducts);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProducts();
+  }, []);
+
   const filteredProducts = useMemo(() => {
-    let result = [...products];
+    let result = [...allProducts];
 
     // Apply brand filter
     if (filters.brands.length > 0) {
@@ -39,7 +64,10 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
 
     // Apply category filter
     if (filters.categories.length > 0) {
-      result = result.filter((p) => filters.categories.includes(p.category));
+      result = result.filter((p) =>
+        filters.categories.includes(p.category) ||
+        filters.categories.includes(p.categoryId || '')
+      );
     }
 
     // Apply device filter
@@ -67,7 +95,7 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
     }
 
     return result;
-  }, [filters, sortBy]);
+  }, [allProducts, filters, sortBy]);
 
   return (
     <section className="py-8 md:py-12">

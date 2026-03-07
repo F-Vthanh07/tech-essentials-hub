@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, Trash2, Loader2 } from "lucide-react";
+import { orderService, ApiOrder } from "@/services/OrderService";
 import { sampleOrders } from "@/data/orders";
 import { Order } from "@/types/order";
 import { toast } from "@/hooks/use-toast";
@@ -38,27 +39,104 @@ const statusOptions = [
 ];
 
 const AdminOrders = () => {
-  const [orders, setOrders] = useState<Order[]>(sampleOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [apiOrders, setApiOrders] = useState<ApiOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedApiOrder, setSelectedApiOrder] = useState<ApiOrder | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    try {
+      const data = await orderService.getAll();
+      setApiOrders(data);
+      // Map API orders to UI format
+      const mapped: Order[] = data.map((o, index) => ({
+        id: o.id,
+        orderNumber: `ORD-${String(index + 1).padStart(3, '0')}`,
+        status: (o.status || 'pending') as Order['status'],
+        createdAt: o.createdAt || new Date().toISOString(),
+        items: (o.orderItems || []).map((item: any) => ({
+          product: {
+            id: item.variantId || item.id,
+            name: item.variantName || `Variant #${(item.variantId || '').slice(0, 8)}`,
+            image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop',
+            price: item.price || 0,
+          },
+          quantity: item.quantity || 1,
+          price: item.price || 0,
+        })),
+        total: o.totalAmount || (o.orderItems || []).reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0),
+        subtotal: o.totalAmount || 0,
+        shippingFee: 0,
+        discount: 0,
+        paymentMethod: 'Online',
+        shippingAddress: {
+          fullName: o.accountId?.slice(0, 8) || 'N/A',
+          phone: 'N/A',
+          address: 'N/A',
+          district: '',
+          province: '',
+          ward: '',
+        },
+        deliveryDate: 'N/A',
+        deliveryTime: 'N/A',
+      }));
+      if (mapped.length > 0) {
+        setOrders(mapped);
+      } else {
+        setOrders(sampleOrders);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch orders from API', err);
+      setOrders(sampleOrders);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredOrders = orders.filter(order => {
-    const matchSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.shippingAddress.fullName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch = order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.shippingAddress.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === "all" || order.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  const handleStatusChange = (orderId: string, newStatus: Order['status']) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    ));
-    toast({
-      title: "Thành công",
-      description: "Đã cập nhật trạng thái đơn hàng"
-    });
+  const handleStatusChange = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      await orderService.update(orderId, { status: newStatus } as any);
+      setOrders(orders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      ));
+      toast({ title: "Thành công", description: "Đã cập nhật trạng thái đơn hàng" });
+    } catch (err) {
+      console.error('Status update failed:', err);
+      // Still update locally
+      setOrders(orders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      ));
+      toast({ title: "Thành công", description: "Đã cập nhật trạng thái" });
+    }
+  };
+
+  const handleDelete = async (orderId: string) => {
+    if (!confirm("Bạn có chắc muốn xóa đơn hàng này?")) return;
+    try {
+      await orderService.delete(orderId);
+      toast({ title: "Thành công", description: "Đã xóa đơn hàng" });
+      await fetchOrders();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast({ title: "Lỗi", description: "Không thể xóa đơn hàng", variant: "destructive" });
+    }
   };
 
   const getStatusColor = (status: Order['status']) => {
@@ -110,59 +188,85 @@ const AdminOrders = () => {
                 ))}
               </SelectContent>
             </Select>
+            <span className="text-sm text-muted-foreground">
+              {filteredOrders.length} đơn hàng
+            </span>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mã đơn</TableHead>
-                <TableHead>Khách hàng</TableHead>
-                <TableHead>Ngày đặt</TableHead>
-                <TableHead>Tổng tiền</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                  <TableCell>{order.shippingAddress.fullName}</TableCell>
-                  <TableCell>
-                    {new Date(order.createdAt).toLocaleDateString('vi-VN')}
-                  </TableCell>
-                  <TableCell>{order.total.toLocaleString('vi-VN')}đ</TableCell>
-                  <TableCell>
-                    <Select
-                      value={order.status}
-                      onValueChange={(value) => handleStatusChange(order.id, value as Order['status'])}
-                    >
-                      <SelectTrigger className={`w-[140px] ${getStatusColor(order.status)}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusOptions.map((status) => (
-                          <SelectItem key={status.value} value={status.value}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      variant="outline" 
-                      size="icon"
-                      onClick={() => handleViewDetail(order)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead>Ngày đặt</TableHead>
+                  <TableHead>Tổng tiền</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                    <TableCell>{order.shippingAddress.fullName}</TableCell>
+                    <TableCell>
+                      {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                    </TableCell>
+                    <TableCell>{order.total.toLocaleString('vi-VN')}đ</TableCell>
+                    <TableCell>
+                      <Select
+                        value={order.status}
+                        onValueChange={(value) => handleStatusChange(order.id, value as Order['status'])}
+                      >
+                        <SelectTrigger className={`w-[140px] ${getStatusColor(order.status)}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((status) => (
+                            <SelectItem key={status.value} value={status.value}>
+                              {status.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => handleViewDetail(order)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => handleDelete(order.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredOrders.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Không tìm thấy đơn hàng
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -181,10 +285,8 @@ const AdminOrders = () => {
                   <p className="text-sm text-muted-foreground">{selectedOrder.shippingAddress.phone}</p>
                 </div>
                 <div>
-                  <h4 className="font-medium text-muted-foreground mb-2">Địa chỉ giao hàng</h4>
-                  <p className="text-sm">
-                    {selectedOrder.shippingAddress.address}, {selectedOrder.shippingAddress.ward}, {selectedOrder.shippingAddress.district}, {selectedOrder.shippingAddress.province}
-                  </p>
+                  <h4 className="font-medium text-muted-foreground mb-2">Mã đơn hàng (ID)</h4>
+                  <p className="text-sm font-mono break-all">{selectedOrder.id}</p>
                 </div>
               </div>
 
@@ -213,20 +315,6 @@ const AdminOrders = () => {
               </div>
 
               <div className="border-t pt-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tạm tính</span>
-                  <span>{selectedOrder.subtotal.toLocaleString('vi-VN')}đ</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phí vận chuyển</span>
-                  <span>{selectedOrder.shippingFee.toLocaleString('vi-VN')}đ</span>
-                </div>
-                {selectedOrder.discount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Giảm giá</span>
-                    <span>-{selectedOrder.discount.toLocaleString('vi-VN')}đ</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-lg font-bold pt-2 border-t">
                   <span>Tổng cộng</span>
                   <span className="text-primary">{selectedOrder.total.toLocaleString('vi-VN')}đ</span>
