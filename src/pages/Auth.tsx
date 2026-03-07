@@ -20,7 +20,7 @@ const Auth = () => {
   // helper to deal with backend responses and normalize to User type
   const normalizeUser = (data: any): User | null => {
     if (!data) return null;
-    
+
     let user: any = null;
     if (Array.isArray(data)) {
       // look for first object that smells like a user
@@ -37,9 +37,9 @@ const Auth = () => {
     } else if (typeof data === 'object') {
       user = data;
     }
-    
+
     if (!user) return null;
-    
+
     // Map backend fields to User type
     return {
       id: user.id || `temp_${Date.now()}`,
@@ -54,11 +54,11 @@ const Auth = () => {
       savedAddresses: user.savedAddresses || undefined,
     };
   };
-  
+
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  
+
   // Register form
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
@@ -93,10 +93,38 @@ const Auth = () => {
         password: loginPassword,
       });
 
-      const raw = resp?.user || resp;
-      const userData = normalizeUser(raw);
+      // Backend may return a plain-text string like:
+      // "Login success with ID :xxxx, jwt Key:eyJhbG..."
+      // We need to parse it to extract userId and token.
+      let userData: User | null = null;
+      let token: string | null = null;
+
+      if (typeof resp === 'string' && resp.toLowerCase().includes('login success')) {
+        // Extract user ID
+        const idMatch = resp.match(/ID\s*:\s*([a-f0-9\-]+)/i);
+        const userId = idMatch ? idMatch[1] : `temp_${Date.now()}`;
+        // Extract JWT token
+        const tokenMatch = resp.match(/jwt\s*Key\s*:\s*(\S+)/i);
+        token = tokenMatch ? tokenMatch[1] : null;
+
+        userData = {
+          id: userId,
+          email: loginEmail,
+          name: loginEmail.split('@')[0],
+          points: 0,
+          membershipLevel: 'bronze',
+          totalSpent: 0,
+          createdAt: new Date().toISOString(),
+        };
+      } else {
+        // JSON response from backend
+        const raw = resp?.user || resp;
+        userData = normalizeUser(raw);
+        token = resp?.token ?? null;
+      }
+
       if (userData) {
-        setAuth(userData, resp.token ?? null);
+        setAuth(userData, token);
         toast.success("Đăng nhập thành công!");
         navigate("/");
       } else {
@@ -108,7 +136,7 @@ const Auth = () => {
       const users = JSON.parse(localStorage.getItem('users') || '[]');
       const passwords = JSON.parse(localStorage.getItem('passwords') || '{}');
       const foundUser = users.find((u: User) => u.email === loginEmail);
-      
+
       if (foundUser && passwords[loginEmail] === loginPassword) {
         setAuth(foundUser, null);
         toast.success("Đăng nhập thành công!");
@@ -123,7 +151,7 @@ const Auth = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!registerName || !registerEmail || !registerPassword) {
       toast.error("Vui lòng nhập đầy đủ thông tin bắt buộc");
       return;
@@ -171,7 +199,7 @@ const Auth = () => {
       // Fallback: check localStorage
       const users = JSON.parse(localStorage.getItem('users') || '[]');
       const existingUser = users.find((u: User) => u.email === registerEmail);
-      
+
       if (existingUser) {
         toast.error("Email đã được sử dụng");
       } else {
