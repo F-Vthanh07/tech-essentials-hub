@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,51 @@ import { authService } from "@/services/AuthService";
 import { toast } from "sonner";
 import { Eye, EyeOff, Gift, Loader2, ArrowLeft } from "lucide-react";
 import { User } from "@/types/user";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user: currentUser, setAuth } = useAuth();
+
+  // helper to deal with backend responses and normalize to User type
+  const normalizeUser = (data: any): User | null => {
+    if (!data) return null;
+    
+    let user: any = null;
+    if (Array.isArray(data)) {
+      // look for first object that smells like a user
+      for (const item of data) {
+        if (item && typeof item === 'object' && (item.email || item.userName || item.name || item.id)) {
+          user = item;
+          break;
+        }
+      }
+      if (!user) {
+        const firstObj = data.find((i) => i && typeof i === 'object');
+        user = firstObj || null;
+      }
+    } else if (typeof data === 'object') {
+      user = data;
+    }
+    
+    if (!user) return null;
+    
+    // Map backend fields to User type
+    return {
+      id: user.id || `temp_${Date.now()}`,
+      email: user.email || '',
+      name: user.userName || user.name || user.email?.split('@')[0] || 'User',
+      phone: user.phone || user.phoneNumber || undefined,
+      avatar: user.avatar || undefined,
+      points: user.points || 0,
+      membershipLevel: user.membershipLevel || 'bronze',
+      totalSpent: user.totalSpent || 0,
+      createdAt: user.createdAt || new Date().toISOString(),
+      savedAddresses: user.savedAddresses || undefined,
+    };
+  };
   
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -30,36 +69,14 @@ const Auth = () => {
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0); // seconds remaining before resend allowed
 
-  // Check if already logged in on mount
+  // redirect to home if already authenticated
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && typeof parsed === 'object') {
-          setCurrentUser(parsed as User);
-          navigate("/");
-        }
-      } catch (err) {
-        console.warn('Invalid user data', err);
-      }
+    if (currentUser) {
+      navigate("/");
     }
-  }, [navigate]);
-
-  // Helper function to save user to localStorage
-  const saveUser = (userData: User) => {
-    localStorage.setItem('currentUser', JSON.stringify(userData));
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const existingIndex = users.findIndex((u: User) => u.id === userData.id);
-    if (existingIndex >= 0) {
-      users[existingIndex] = userData;
-    } else {
-      users.push(userData);
-    }
-    localStorage.setItem('users', JSON.stringify(users));
-    setCurrentUser(userData);
-  };
+  }, [currentUser, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,12 +93,10 @@ const Auth = () => {
         password: loginPassword,
       });
 
-      const userData = resp?.user || resp;
-      if (userData && typeof userData === 'object') {
-        if (resp.token) {
-          localStorage.setItem('authToken', resp.token);
-        }
-        saveUser(userData as User);
+      const raw = resp?.user || resp;
+      const userData = normalizeUser(raw);
+      if (userData) {
+        setAuth(userData, resp.token ?? null);
         toast.success("Đăng nhập thành công!");
         navigate("/");
       } else {
@@ -95,7 +110,7 @@ const Auth = () => {
       const foundUser = users.find((u: User) => u.email === loginEmail);
       
       if (foundUser && passwords[loginEmail] === loginPassword) {
-        saveUser(foundUser);
+        setAuth(foundUser, null);
         toast.success("Đăng nhập thành công!");
         navigate("/");
       } else {
@@ -134,19 +149,21 @@ const Auth = () => {
         phone: registerPhone || undefined,
       });
 
-      const userData = resp?.user || resp;
+      const raw = resp?.user || resp;
+      const userData = normalizeUser(raw);
 
       // If backend returns a user object immediately, save & proceed
-      if (userData && typeof userData === 'object') {
+      if (userData) {
         if (resp.token) {
           localStorage.setItem('authToken', resp.token);
         }
-        saveUser(userData as User);
+        setAuth(userData, resp.token ?? null);
         toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
         navigate("/");
       } else {
         // Assume backend sent OTP to email and returned a success message
         setOtpEmail(registerEmail);
+        setResendCountdown(20);
         toast.success('Mã OTP đã được gửi tới email. Vui lòng kiểm tra và nhập mã.');
       }
     } catch (err) {
@@ -181,7 +198,7 @@ const Auth = () => {
           createdAt: new Date().toISOString(),
         });
         localStorage.setItem('pointsHistory', JSON.stringify(history));
-        saveUser(newUser);
+        setAuth(newUser, null);
         toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
         navigate("/");
       }
@@ -189,6 +206,21 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
+
+  // start countdown effect when otpEmail set
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/20 flex items-center justify-center p-4">
@@ -350,9 +382,17 @@ const Auth = () => {
                             const userData = resp?.user || resp;
                             if (userData && typeof userData === 'object') {
                               if (resp.token) localStorage.setItem('authToken', resp.token);
-                              saveUser(userData as User);
-                              toast.success('Xác thực thành công, bạn đã đăng nhập.');
-                              navigate('/');
+                              const normalized = normalizeUser(userData);
+                              if (normalized) {
+                                setAuth(normalized, resp.token ?? null);
+                                toast.success('Xác thực thành công, bạn đã đăng nhập.');
+                                navigate('/');
+                              } else {
+                                // fallback
+                                toast.success('Xác thực thành công. Vui lòng đăng nhập.');
+                                setOtpEmail(null);
+                                navigate('/auth');
+                              }
                             } else {
                               toast.success('Xác thực thành công. Vui lòng đăng nhập.');
                               setOtpEmail(null);
@@ -372,18 +412,20 @@ const Auth = () => {
                       </Button>
                       <Button
                         variant="outline"
+                        disabled={resendCountdown > 0}
                         onClick={async () => {
                           if (!otpEmail) return;
                           try {
                             await authService.resendOtp({ email: otpEmail });
                             toast.success('Mã OTP đã được gửi lại.');
+                            setResendCountdown(20);
                           } catch (err) {
                             console.warn('resendOtp error', err);
                             toast.error('Không gửi được mã OTP.');
                           }
                         }}
                       >
-                        Gửi lại
+                        {resendCountdown > 0 ? `Gửi lại (${resendCountdown}s)` : 'Gửi lại'}
                       </Button>
                     </div>
                   </div>

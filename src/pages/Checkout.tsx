@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { ArrowLeft, CreditCard, Wallet, Building2, Truck, FileText, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ const Checkout = () => {
   const location = useLocation();
   const cartItems: CartItem[] = location.state?.cartItems || [];
   const appliedDiscount = location.state?.discount || 0;
-  const [user, setUser] = useState<User | null>(null);
+  const { user, setAuth } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -85,9 +86,8 @@ const Checkout = () => {
     
     updatedAddresses.push(newAddress);
     
-    const updatedUser = { ...user, savedAddresses: updatedAddresses };
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    const updatedUser = { ...user!, savedAddresses: updatedAddresses };
+    setAuth(updatedUser, null);
   };
 
   const deleteAddress = (addressId: string) => {
@@ -100,34 +100,24 @@ const Checkout = () => {
       updatedAddresses[0].isDefault = true;
     }
     
-    const updatedUser = { ...user, savedAddresses: updatedAddresses };
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    const updatedUser = { ...user!, savedAddresses: updatedAddresses };
+    setAuth(updatedUser, null);
   };
 
   const savedAddresses = getSavedAddresses();
 
   // Load user from localStorage and default address on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && typeof parsed === 'object') {
-          setUser(parsed as User);
-          if (parsed.savedAddresses && parsed.savedAddresses.length > 0) {
-            const defaultAddress = parsed.savedAddresses.find((addr: SavedAddress) => addr.isDefault) || parsed.savedAddresses[0];
-            if (defaultAddress) {
-              loadAddress(defaultAddress);
-              setSelectedAddressId(defaultAddress.id);
-            }
-          }
+    if (user) {
+      if (user.savedAddresses && user.savedAddresses.length > 0) {
+        const defaultAddress = user.savedAddresses.find((addr: SavedAddress) => addr.isDefault) || user.savedAddresses[0];
+        if (defaultAddress) {
+          loadAddress(defaultAddress);
+          setSelectedAddressId(defaultAddress.id);
         }
-      } catch (err) {
-        console.warn('Invalid user data', err);
       }
     }
-  }, []);
+  }, [user]);
 
   const loadAddress = (address: SavedAddress) => {
     setFormData({

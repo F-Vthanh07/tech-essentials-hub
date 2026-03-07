@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { brandService } from "@/services/BrandService";
+import { Brand } from "@/services/BrandService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Search, Palette, X } from "lucide-react";
-import { products as initialProducts, brands, categories } from "@/data/products";
+import { products as initialProducts, categories } from "@/data/products";
 import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
 
@@ -50,6 +52,7 @@ const AdminProducts = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     price: 0,
@@ -64,6 +67,19 @@ const AdminProducts = () => {
     isBestseller: false
   });
   const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
+
+  // Fetch brands from API
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const data = await brandService.getAll();
+        setBrands(data);
+      } catch (err) {
+        console.warn('Failed to fetch brands', err);
+      }
+    };
+    fetchBrands();
+  }, []);
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

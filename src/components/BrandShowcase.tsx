@@ -1,6 +1,29 @@
-import { brands } from "@/data/products";
+import { useState, useEffect } from "react";
+import { brandService } from "@/services/BrandService";
+import { Brand } from "@/services/BrandService";
 
 const BrandShowcase = () => {
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const data = await brandService.getAll();
+        setBrands(data);
+      } catch (err) {
+        console.warn('Failed to fetch brands', err);
+        // Fallback: set empty or default brands
+        setBrands([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchBrands();
+  }, []);
+
+  if (isLoading) return null;
+
   return (
     <section className="py-8 border-b border-border">
       <div className="container">

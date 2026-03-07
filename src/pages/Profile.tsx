@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -38,7 +39,7 @@ import {
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<UserType | null>(null);
+  const { user, setAuth, logout: authLogout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -57,28 +58,18 @@ const Profile: React.FC = () => {
     isDefault: false,
   });
 
-  // Load user from localStorage on mount
+  // initialize local edit fields when context user changes
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && typeof parsed === 'object') {
-          setUser(parsed as UserType);
-          setEditName(parsed.name || '');
-          setEditPhone(parsed.phone || '');
-        }
-      } catch (err) {
-        console.warn('Invalid user data', err);
-      }
+    if (user) {
+      setEditName(user.name || '');
+      setEditPhone(user.phone || '');
     }
-  }, []);
+  }, [user]);
 
   // Helper function to update user
   const updateUser = (updates: Partial<UserType>) => {
     if (!user) return;
     const updatedUser = { ...user, ...updates };
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     const existingIndex = users.findIndex((u: UserType) => u.id === updatedUser.id);
     if (existingIndex >= 0) {
@@ -87,13 +78,12 @@ const Profile: React.FC = () => {
       users.push(updatedUser);
     }
     localStorage.setItem('users', JSON.stringify(users));
-    setUser(updatedUser);
+    setAuth(updatedUser, null);
   };
 
   // Helper function to logout
   const logout = () => {
-    localStorage.removeItem('currentUser');
-    setUser(null);
+    authLogout();
   };
 
   // Helper function to get points history

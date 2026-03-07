@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, Crown, LogOut } from "lucide-react";
+import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { categories } from "@/data/products";
 import { useCart } from "@/contexts/CartContext";
-import { MEMBERSHIP_LEVELS, User as UserType } from "@/types/user";
 import { toast } from "sonner";
 
 interface HeaderProps {
@@ -26,30 +26,15 @@ const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
   const cartCount = propCartCount ?? getCartCount();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [user, setUser] = useState<UserType | null>(null);
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
-          setUser(parsed as UserType);
-        }
-      } catch (e) {
-        console.warn('invalid user in storage', e);
-      }
-    }
-  }, []);
-
-  const logout = () => {
-    localStorage.removeItem('currentUser');
-    setUser(null);
-  };
+  // The AuthContext already exposes `user` and `logout`.
+  // No need for a separate effect; context keeps state in sync with
+  // localStorage on provider initialization.
 
   // Safe first name (guard against missing/invalid user.name)
-  const firstName = user?.name && typeof user.name === 'string' ? user.name.split(' ')[0] : 'Khách';
+  const displayName = user?.name && typeof user.name === 'string' ? user.name.split(' ')[0] : 'Khách';
 
   const handleLogout = () => {
     logout();
@@ -115,13 +100,7 @@ const Header = ({ cartCount: propCartCount, onCartClick }: HeaderProps) => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="hidden md:flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-full ${MEMBERSHIP_LEVELS[user.membershipLevel ?? 'bronze']?.color || 'bg-amber-600'} flex items-center justify-center`}>
-                      <Crown className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-sm">{firstName}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {user?.points ?? 0} điểm
-                    </Badge>
+                    <span className="text-sm">{displayName}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">

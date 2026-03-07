@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { brandService } from "@/services/BrandService";
+import { Brand } from "@/services/BrandService";
 import { ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +27,21 @@ interface ProductFilterProps {
 
 const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
   const [openSections, setOpenSections] = useState<string[]>(["brands", "categories"]);
+  const [apiBrands, setApiBrands] = useState<Brand[]>([]);
+  const displayBrands = apiBrands.length > 0 ? apiBrands : brands;
+
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const data = await brandService.getAll();
+        setApiBrands(data);
+      } catch (err) {
+        console.warn('Failed to fetch brands from API', err);
+        // Fallback to static brands
+      }
+    };
+    fetchBrands();
+  }, []);
 
   const toggleSection = (section: string) => {
     setOpenSections((prev) =>
@@ -127,14 +144,14 @@ const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
           />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-2">
-          {brands.map((brand) => (
+          {displayBrands.map((brand) => (
             <label
               key={brand.id}
               className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
             >
               <Checkbox
-                checked={filters.brands.includes(brand.name)}
-                onCheckedChange={() => toggleBrand(brand.name)}
+                checked={filters.brands.includes(brand.name || '')}
+                onCheckedChange={() => toggleBrand(brand.name || '')}
               />
               <span className="text-sm">{brand.name}</span>
             </label>
