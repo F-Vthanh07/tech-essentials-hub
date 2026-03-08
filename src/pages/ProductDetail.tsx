@@ -475,9 +475,15 @@ const ProductDetail = () => {
               </div>
             </TabsContent>
             <TabsContent value="reviews" className="pt-6">
-              <div className="text-center py-12 text-muted-foreground">
-                <p>Chưa có đánh giá nào cho sản phẩm này.</p>
-                <Button variant="outline" className="mt-4">
+              <div className="text-center py-16">
+                <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                  <Star className="w-10 h-10 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Chưa có đánh giá nào</h3>
+                <p className="text-muted-foreground mb-1">Hãy là người đầu tiên chia sẻ trải nghiệm của bạn</p>
+                <p className="text-muted-foreground text-sm mb-6">Đánh giá của bạn giúp người mua khác đưa ra quyết định tốt hơn</p>
+                <Button variant="outline" className="gap-2">
+                  <Star className="w-4 h-4" />
                   Viết đánh giá đầu tiên
                 </Button>
               </div>

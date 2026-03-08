@@ -34,11 +34,27 @@ export const variantApi = {
 export const compatibilityApi = {
   getAll: () =>
     httpClient.get<ApiProductCompatibility[]>('/api/product-compatibility/get-all'),
+  getById: (id: string) =>
+    httpClient.get<ApiProductCompatibility>(`/api/product-compatibility/get-by-id/${id}`),
+  create: (data: { productId: string; deviceId: string; note?: string }) =>
+    httpClient.post<ApiProductCompatibility>('/api/product-compatibility/create', data),
+  update: (id: string, data: Partial<ApiProductCompatibility>) =>
+    httpClient.put<ApiProductCompatibility>(`/api/product-compatibility/update/${id}`, data),
+  delete: (id: string) =>
+    httpClient.del<any>(`/api/product-compatibility/delete/${id}`),
 };
 
 export const productAttributeApi = {
   getAll: () =>
     httpClient.get<ApiProductAttribute[]>('/api/product-attribute/get-all'),
+  getById: (id: string) =>
+    httpClient.get<ApiProductAttribute>(`/api/product-attribute/get-by-id/${id}`),
+  create: (data: { productId: string; attributeId: string; value: string }) =>
+    httpClient.post<ApiProductAttribute>('/api/product-attribute/create', data),
+  update: (id: string, data: Partial<ApiProductAttribute>) =>
+    httpClient.put<ApiProductAttribute>(`/api/product-attribute/update/${id}`, data),
+  delete: (id: string) =>
+    httpClient.del<any>(`/api/product-attribute/delete/${id}`),
 };
 
 // === Mapper: Backend → Frontend Product ===

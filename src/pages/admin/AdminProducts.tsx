@@ -1,615 +1,843 @@
-import { useState, useEffect } from "react";
-import { brandService } from "@/services/BrandService";
-import { Brand } from "@/services/BrandService";
+import { useState, useEffect, useCallback } from "react";
+import { brandService, Brand } from "@/services/BrandService";
 import { categoryService } from "@/services/CategoryService";
-import { productApi, variantApi, productService } from "@/services/ProductService";
-import { ApiCategory } from "@/types/product";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { deviceService } from "@/services/DeviceService";
+import { attributeService } from "@/services/AttributeService";
+import { productApi, variantApi, productService, compatibilityApi, productAttributeApi } from "@/services/ProductService";
+import {
+  ApiCategory, ApiDevice, ApiAttribute, ApiProduct,
+  ApiProductVariant, ApiProductCompatibility, ApiProductAttribute,
+  Product, ColorVariant,
+} from "@/types/product";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Palette, X, Loader2 } from "lucide-react";
-import { Product, ColorVariant, ApiProductVariant } from "@/types/product";
+import { Plus, Pencil, Trash2, Search, Loader2, X, Palette, Eye, Check, Save } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 
-const PRESET_COLORS = [
-  { name: "Đen", code: "#000000" },
-  { name: "Trắng", code: "#FFFFFF" },
-  { name: "Đỏ", code: "#EF4444" },
-  { name: "Xanh dương", code: "#3B82F6" },
-  { name: "Xanh lá", code: "#22C55E" },
-  { name: "Vàng", code: "#EAB308" },
-  { name: "Tím", code: "#A855F7" },
-  { name: "Hồng", code: "#EC4899" },
-  { name: "Cam", code: "#F97316" },
-  { name: "Xám", code: "#6B7280" },
-  { name: "Nâu", code: "#92400E" },
-  { name: "Xanh ngọc", code: "#14B8A6" },
-];
+// ======================================
+// Generic CRUD Table Component
+// ======================================
+interface CrudColumn<T> {
+  key: string;
+  label: string;
+  render?: (item: T) => React.ReactNode;
+}
 
-const AdminProducts = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [categories, setCategories] = useState<ApiCategory[]>([]);
+interface CrudField {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'textarea' | 'select' | 'checkbox';
+  required?: boolean;
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+}
+
+function GenericCrudTab<T extends { id: string }>({
+  title,
+  columns,
+  fields,
+  fetchAll,
+  onCreate,
+  onUpdate,
+  onDelete,
+  getFormDefaults,
+  searchField,
+}: {
+  title: string;
+  columns: CrudColumn<T>[];
+  fields: CrudField[];
+  fetchAll: () => Promise<T[]>;
+  onCreate: (data: any) => Promise<any>;
+  onUpdate: (id: string, data: any) => Promise<any>;
+  onDelete: (id: string) => Promise<any>;
+  getFormDefaults: () => Record<string, any>;
+  searchField?: string;
+}) {
+  const [items, setItems] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: 0,
-    image: "",
-    brandId: "",
-    brandName: "",
-    categoryId: "",
-    categoryName: "",
-    isActive: true,
-  });
-  const [colorVariants, setColorVariants] = useState<(ColorVariant & { sku?: string; stockQuantity?: number; size?: string })[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<T | null>(null);
+  const [formData, setFormData] = useState<Record<string, any>>(getFormDefaults());
 
-  // Fetch initial data
-  useEffect(() => {
-    fetchProducts();
-    fetchMeta();
-  }, []);
-
-  const fetchProducts = async () => {
+  const loadItems = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await productService.getAllProducts();
-      setProducts(data);
+      const data = await fetchAll();
+      setItems(data);
     } catch (err) {
-      console.warn('Failed to fetch products', err);
-      toast({ title: "Lỗi", description: "Không thể tải danh sách sản phẩm", variant: "destructive" });
+      console.warn(`Failed to fetch ${title}`, err);
+      toast({ title: "Lỗi", description: `Không thể tải ${title}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchAll, title]);
 
-  const fetchMeta = async () => {
-    try {
-      const [brandsData, catsData] = await Promise.all([
-        brandService.getAll(),
-        categoryService.getAll(),
-      ]);
-      setBrands(brandsData);
-      setCategories(catsData);
-    } catch (err) {
-      console.warn('Failed to fetch meta', err);
-    }
-  };
+  useEffect(() => { loadItems(); }, [loadItems]);
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.brand.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      description: "",
-      price: 0,
-      image: "",
-      brandId: "",
-      brandName: "",
-      categoryId: "",
-      categoryName: "",
-      isActive: true,
-    });
-    setColorVariants([]);
-    setEditingProduct(null);
-  };
+  const filteredItems = searchField
+    ? items.filter((item: any) =>
+      String(item[searchField] || "").toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    : items;
 
   const handleOpenAdd = () => {
-    resetForm();
+    setFormData(getFormDefaults());
+    setEditingItem(null);
     setIsDialogOpen(true);
   };
 
-  const handleOpenEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      description: product.description || "",
-      price: product.price,
-      image: product.image,
-      brandId: product.brandId || "",
-      brandName: product.brand,
-      categoryId: product.categoryId || "",
-      categoryName: product.category,
-      isActive: product.isActive ?? true,
-    });
-    setColorVariants(
-      (product.colorVariants || []).map(cv => ({
-        ...cv,
-        sku: '',
-        stockQuantity: 10,
-        size: 'Default',
-      }))
-    );
+  const handleOpenEdit = (item: T) => {
+    setEditingItem(item);
+    const data: Record<string, any> = {};
+    fields.forEach((f) => { data[f.key] = (item as any)[f.key] ?? getFormDefaults()[f.key]; });
+    setFormData(data);
     setIsDialogOpen(true);
-  };
-
-  const handleAddColorVariant = () => {
-    const newVariant = {
-      id: `temp_${Date.now()}`,
-      name: "",
-      colorCode: "#000000",
-      price: formData.price,
-      discount: 0,
-      image: "",
-      sku: "",
-      stockQuantity: 10,
-      size: "Default",
-    };
-    setColorVariants([...colorVariants, newVariant]);
-  };
-
-  const handleUpdateColorVariant = (id: string, field: string, value: string | number) => {
-    setColorVariants(colorVariants.map(cv => 
-      cv.id === id ? { ...cv, [field]: value } : cv
-    ));
-  };
-
-  const handleRemoveColorVariant = (id: string) => {
-    setColorVariants(colorVariants.filter(cv => cv.id !== id));
-  };
-
-  const handleSelectPresetColor = (variantId: string, preset: { name: string; code: string }) => {
-    setColorVariants(colorVariants.map(cv => 
-      cv.id === variantId ? { ...cv, name: preset.name, colorCode: preset.code } : cv
-    ));
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.price || !formData.brandId || !formData.categoryId) {
-      toast({ title: "Lỗi", description: "Vui lòng điền đầy đủ thông tin bắt buộc", variant: "destructive" });
-      return;
-    }
-
-    for (const cv of colorVariants) {
-      if (!cv.name) {
-        toast({ title: "Lỗi", description: "Vui lòng nhập tên màu cho tất cả biến thể", variant: "destructive" });
+    // Check required fields
+    for (const f of fields) {
+      if (f.required && !formData[f.key] && formData[f.key] !== 0 && formData[f.key] !== false) {
+        toast({ title: "Lỗi", description: `Vui lòng điền ${f.label}`, variant: "destructive" });
         return;
       }
     }
-
     setIsSaving(true);
-
     try {
-      if (editingProduct) {
-        // UPDATE product via API
-        await productApi.update(editingProduct.id, {
-          id: editingProduct.id,
-          name: formData.name,
-          description: formData.description,
-          price: formData.price,
-          isActive: formData.isActive,
-          brandId: formData.brandId,
-          brandName: formData.brandName,
-          categoryId: formData.categoryId,
-          categoryName: formData.categoryName,
-        });
-
-        // Create new variants (temp ones)
-        for (const cv of colorVariants) {
-          if (cv.id.startsWith('temp_')) {
-            await variantApi.create({
-              productId: editingProduct.id,
-              sku: cv.sku || `${formData.name.substring(0, 3).toUpperCase()}-${cv.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
-              name: cv.name,
-              stockQuantity: cv.stockQuantity || 10,
-              imageUrl: cv.image || formData.image,
-              color: cv.colorCode,
-              size: cv.size || 'Default',
-              price: cv.price,
-              productName: null,
-            });
-          }
-        }
-
-        toast({ title: "Thành công", description: "Đã cập nhật sản phẩm" });
+      if (editingItem) {
+        await onUpdate(editingItem.id, { id: editingItem.id, ...formData });
+        toast({ title: "Thành công", description: `Đã cập nhật` });
       } else {
-        // CREATE product via API
-        const created = await productApi.create({
-          name: formData.name,
-          description: formData.description,
-          price: formData.price,
-          isActive: formData.isActive,
-          brandId: formData.brandId,
-          brandName: formData.brandName,
-          categoryId: formData.categoryId,
-          categoryName: formData.categoryName,
-        });
-
-        // Create variants for the new product
-        for (const cv of colorVariants) {
-          await variantApi.create({
-            productId: created.id,
-            sku: cv.sku || `${formData.name.substring(0, 3).toUpperCase()}-${cv.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
-            name: cv.name,
-            stockQuantity: cv.stockQuantity || 10,
-            imageUrl: cv.image || formData.image,
-            color: cv.colorCode,
-            size: cv.size || 'Default',
-            price: cv.price,
-            productName: null,
-          });
-        }
-
-        toast({ title: "Thành công", description: "Đã thêm sản phẩm mới" });
+        await onCreate(formData);
+        toast({ title: "Thành công", description: `Đã thêm mới` });
       }
-
       setIsDialogOpen(false);
-      resetForm();
-      // Refresh products from API
-      await fetchProducts();
-    } catch (err) {
+      await loadItems();
+    } catch (err: any) {
       console.error('Save failed:', err);
-      toast({ title: "Lỗi", description: "Không thể lưu sản phẩm. Vui lòng thử lại.", variant: "destructive" });
+      toast({ title: "Lỗi", description: err?.message || "Không thể lưu", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (productId: string) => {
-    if (!confirm("Bạn có chắc muốn xóa sản phẩm này?")) return;
-
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc muốn xóa?")) return;
     try {
-      await productApi.delete(productId);
-      toast({ title: "Thành công", description: "Đã xóa sản phẩm" });
-      await fetchProducts();
+      await onDelete(id);
+      toast({ title: "Thành công", description: "Đã xóa" });
+      await loadItems();
     } catch (err) {
       console.error('Delete failed:', err);
-      toast({ title: "Lỗi", description: "Không thể xóa sản phẩm", variant: "destructive" });
+      toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" });
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Quản lý sản phẩm</h1>
-        <Button onClick={handleOpenAdd}>
-          <Plus className="h-4 w-4 mr-2" />
-          Thêm sản phẩm
-        </Button>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={`Tìm kiếm ${title.toLowerCase()}...`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filteredItems.length} bản ghi</span>
+          <Button onClick={handleOpenAdd} size="sm">
+            <Plus className="h-4 w-4 mr-1" /> Thêm
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm kiếm sản phẩm..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {filteredProducts.length} sản phẩm
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hình ảnh</TableHead>
-                  <TableHead>Tên sản phẩm</TableHead>
-                  <TableHead>Thương hiệu</TableHead>
-                  <TableHead>Danh mục</TableHead>
-                  <TableHead>Giá</TableHead>
-                  <TableHead>Biến thể</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <img 
-                        src={product.image} 
-                        alt={product.name}
-                        className="w-12 h-12 object-cover rounded"
-                        onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop')}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium max-w-[200px] truncate">{product.name}</TableCell>
-                    <TableCell>{product.brand}</TableCell>
-                    <TableCell>{product.category}</TableCell>
-                    <TableCell>{product.price.toLocaleString('vi-VN')}đ</TableCell>
-                    <TableCell>
-                      {product.colorVariants && product.colorVariants.length > 0 ? (
-                        <div className="flex gap-1">
-                          {product.colorVariants.slice(0, 4).map((cv) => (
-                            <div
-                              key={cv.id}
-                              className="w-5 h-5 rounded-full border border-border"
-                              style={{ backgroundColor: cv.colorCode }}
-                              title={`${cv.name}: ${cv.price.toLocaleString('vi-VN')}đ`}
-                            />
-                          ))}
-                          {product.colorVariants.length > 4 && (
-                            <span className="text-xs text-muted-foreground">+{product.colorVariants.length - 4}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${product.isActive !== false ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                        {product.isActive !== false ? 'Đang bán' : 'Ẩn'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          onClick={() => handleOpenEdit(product)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          onClick={() => handleDelete(product.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {columns.map((col) => (
+                  <TableHead key={col.key}>{col.label}</TableHead>
                 ))}
-                {filteredProducts.length === 0 && !isLoading && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Không tìm thấy sản phẩm
+                <TableHead className="text-right w-[100px]">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredItems.map((item) => (
+                <TableRow key={item.id}>
+                  {columns.map((col) => (
+                    <TableCell key={col.key}>
+                      {col.render ? col.render(item) : String((item as any)[col.key] ?? "-")}
                     </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  ))}
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(item)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 1} className="text-center py-8 text-muted-foreground">
+                    Không có dữ liệu
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editingProduct ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}
-            </DialogTitle>
+            <DialogTitle>{editingItem ? `Sửa ${title}` : `Thêm ${title}`}</DialogTitle>
           </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {fields.map((field) => (
+              <div key={field.key} className="grid gap-2">
+                <Label>{field.label}{field.required ? ' *' : ''}</Label>
+                {field.type === 'textarea' ? (
+                  <Textarea
+                    value={formData[field.key] || ''}
+                    onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                    placeholder={field.placeholder}
+                    rows={3}
+                  />
+                ) : field.type === 'select' ? (
+                  <Select
+                    value={formData[field.key] || ''}
+                    onValueChange={(v) => setFormData({ ...formData, [field.key]: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder={field.placeholder || `Chọn...`} /></SelectTrigger>
+                    <SelectContent>
+                      {field.options?.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : field.type === 'checkbox' ? (
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!formData[field.key]}
+                      onChange={(e) => setFormData({ ...formData, [field.key]: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{field.placeholder || field.label}</span>
+                  </label>
+                ) : (
+                  <Input
+                    type={field.type}
+                    value={formData[field.key] ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
+                    })}
+                    placeholder={field.placeholder}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingItem ? "Cập nhật" : "Thêm mới"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
+// ======================================
+// Products Tab (custom, with variants, attributes, compatibilities)
+// ======================================
+function ProductsTab({
+  brands,
+  categories,
+  devices,
+  attributes,
+}: {
+  brands: Brand[];
+  categories: ApiCategory[];
+  devices: ApiDevice[];
+  attributes: ApiAttribute[];
+}) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState({
+    name: "", description: "", price: 0, image: "", brandId: "", categoryId: "", isActive: true,
+  });
+  const [colorVariants, setColorVariants] = useState<any[]>([]);
+  const [editAttributes, setEditAttributes] = useState<any[]>([]);
+  const [editCompatibilities, setEditCompatibilities] = useState<any[]>([]);
+
+  // View Detail state
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<ApiProduct | null>(null);
+  const [detailVariants, setDetailVariants] = useState<ApiProductVariant[]>([]);
+  const [detailAttributes, setDetailAttributes] = useState<ApiProductAttribute[]>([]);
+  const [detailCompatibilities, setDetailCompatibilities] = useState<ApiProductCompatibility[]>([]);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+
+  const PRESET_COLORS = [
+    { name: "Đen", code: "#000000" }, { name: "Trắng", code: "#FFFFFF" },
+    { name: "Đỏ", code: "#EF4444" }, { name: "Xanh dương", code: "#3B82F6" },
+    { name: "Xanh lá", code: "#22C55E" }, { name: "Vàng", code: "#EAB308" },
+    { name: "Tím", code: "#A855F7" }, { name: "Hồng", code: "#EC4899" },
+    { name: "Cam", code: "#F97316" }, { name: "Xám", code: "#6B7280" },
+  ];
+
+  const fetchProducts = useCallback(async () => {
+    setIsLoading(true);
+    try { setProducts(await productService.getAllProducts()); }
+    catch { toast({ title: "Lỗi", description: "Không thể tải sản phẩm", variant: "destructive" }); }
+    finally { setIsLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.brand.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const resetForm = () => {
+    setFormData({ name: "", description: "", price: 0, image: "", brandId: "", categoryId: "", isActive: true });
+    setColorVariants([]);
+    setEditAttributes([]);
+    setEditCompatibilities([]);
+    setEditingProduct(null);
+  };
+
+  const handleOpenAdd = () => { resetForm(); setIsDialogOpen(true); };
+
+  const handleViewDetail = async (productId: string) => {
+    setIsDetailOpen(true);
+    setIsDetailLoading(true);
+    setDetailProduct(null);
+    setDetailVariants([]);
+    setDetailAttributes([]);
+    setDetailCompatibilities([]);
+    try {
+      const [apiProduct, allVariants, allAttrs, allComps] = await Promise.all([
+        productApi.getById(productId),
+        variantApi.getAll().catch(() => []),
+        productAttributeApi.getAll().catch(() => []),
+        compatibilityApi.getAll().catch(() => []),
+      ]);
+      setDetailProduct(apiProduct);
+      setDetailVariants(allVariants.filter(v => v.productId === productId));
+      setDetailAttributes(allAttrs.filter(a => a.productId === productId));
+      setDetailCompatibilities(allComps.filter(c => c.productId === productId));
+    } catch (err) {
+      console.error('Failed to fetch product detail:', err);
+      toast({ title: "Lỗi", description: "Không thể tải chi tiết sản phẩm", variant: "destructive" });
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
+  const handleOpenEdit = async (p: Product) => {
+    setEditingProduct(p);
+    setFormData({
+      name: p.name, description: p.description || "", price: p.price, image: p.image,
+      brandId: p.brandId || "", categoryId: p.categoryId || "", isActive: p.isActive ?? true,
+    });
+    // Load full variant, attribute, and compatibility data from API
+    try {
+      const [allVariants, allAttrs, allComps] = await Promise.all([
+        variantApi.getAll().catch(() => []),
+        productAttributeApi.getAll().catch(() => []),
+        compatibilityApi.getAll().catch(() => []),
+      ]);
+      const productVariants = allVariants.filter(v => v.productId === p.id);
+      setColorVariants(productVariants.map(v => ({
+        id: v.id, name: v.name, colorCode: v.color, price: v.price, image: v.imageUrl,
+        sku: v.sku, stockQuantity: v.stockQuantity, size: v.size, _saved: true,
+      })));
+
+      const prodAttrs = allAttrs.filter(a => a.productId === p.id);
+      setEditAttributes(prodAttrs.map(a => ({ ...a, _saved: true })));
+
+      const prodComps = allComps.filter(c => c.productId === p.id);
+      setEditCompatibilities(prodComps.map(c => ({ ...c, _saved: true })));
+    } catch {
+      setColorVariants((p.colorVariants || []).map(cv => ({ ...cv, sku: '', stockQuantity: 10, size: 'Default' })));
+      setEditAttributes([]);
+      setEditCompatibilities([]);
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.price || !formData.brandId || !formData.categoryId) {
+      toast({ title: "Lỗi", description: "Điền đầy đủ thông tin bắt buộc", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const brand = brands.find(b => b.id === formData.brandId);
+      const cat = categories.find(c => c.id === formData.categoryId);
+      const payload = { ...formData, brandName: brand?.name || '', categoryName: cat?.name || '' };
+
+      if (editingProduct) {
+        await productApi.update(editingProduct.id, { id: editingProduct.id, ...payload } as any);
+        for (const cv of colorVariants.filter(v => v.id.startsWith('temp_'))) {
+          await variantApi.create({
+            productId: editingProduct.id, sku: `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
+            name: cv.name, stockQuantity: cv.stockQuantity || 10, imageUrl: cv.image || formData.image,
+            color: cv.colorCode, size: cv.size || 'Default', price: cv.price, productName: null,
+          });
+        }
+        for (const a of editAttributes.filter(a => a.id.startsWith('temp_'))) {
+          if (a.attributeId && a.value) await productAttributeApi.create({ productId: editingProduct.id, attributeId: a.attributeId, value: a.value });
+        }
+        for (const c of editCompatibilities.filter(c => c.id.startsWith('temp_'))) {
+          if (c.deviceId) await compatibilityApi.create({ productId: editingProduct.id, deviceId: c.deviceId, note: c.note || '' });
+        }
+        toast({ title: "Thành công", description: "Đã cập nhật sản phẩm" });
+      } else {
+        const created = await productApi.create(payload as any);
+        for (const cv of colorVariants) {
+          await variantApi.create({
+            productId: created.id, sku: `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
+            name: cv.name, stockQuantity: cv.stockQuantity || 10, imageUrl: cv.image || formData.image,
+            color: cv.colorCode, size: cv.size || 'Default', price: cv.price, productName: null,
+          });
+        }
+        for (const a of editAttributes) {
+          if (a.attributeId && a.value) await productAttributeApi.create({ productId: created.id, attributeId: a.attributeId, value: a.value });
+        }
+        for (const c of editCompatibilities) {
+          if (c.deviceId) await compatibilityApi.create({ productId: created.id, deviceId: c.deviceId, note: c.note || '' });
+        }
+        toast({ title: "Thành công", description: "Đã thêm sản phẩm mới" });
+      }
+      setIsDialogOpen(false);
+      resetForm();
+      await fetchProducts();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Lỗi", description: "Không thể lưu sản phẩm", variant: "destructive" });
+    } finally { setIsSaving(false); }
+  };
+
+  const handleUpdateVariant = async (v: any) => {
+    try {
+      await variantApi.update(v.id, {
+        id: v.id, sku: v.sku, name: v.name, stockQuantity: v.stockQuantity,
+        imageUrl: v.image, color: v.colorCode, size: v.size, price: v.price,
+      });
+      setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, _saved: true } : cv));
+      toast({ title: "Thành công", description: "Đã lưu biến thể" });
+    } catch (err) {
+      console.error('Update variant failed:', err);
+      toast({ title: "Lỗi", description: "Không thể lưu biến thể", variant: "destructive" });
+    }
+  };
+
+  const handleUpdateAttribute = async (a: any) => {
+    try {
+      if (!a.attributeId || !a.value) {
+        toast({ title: "Lỗi", description: "Vui lòng nhập đủ thông tin thuộc tính", variant: "destructive" });
+        return;
+      }
+      await productAttributeApi.update(a.id, {
+        id: a.id, productId: editingProduct!.id, attributeId: a.attributeId, value: a.value
+      });
+      setEditAttributes(editAttributes.map(ea => ea.id === a.id ? { ...ea, _saved: true } : ea));
+      toast({ title: "Thành công", description: "Đã lưu thuộc tính" });
+    } catch (err) {
+      console.error('Update attribute failed:', err);
+      toast({ title: "Lỗi", description: "Không thể lưu thuộc tính", variant: "destructive" });
+    }
+  };
+
+  const handleUpdateCompatibility = async (c: any) => {
+    try {
+      if (!c.deviceId) {
+        toast({ title: "Lỗi", description: "Vui lòng chọn thiết bị", variant: "destructive" });
+        return;
+      }
+      await compatibilityApi.update(c.id, {
+        id: c.id, productId: editingProduct!.id, deviceId: c.deviceId, note: c.note || ''
+      });
+      setEditCompatibilities(editCompatibilities.map(ec => ec.id === c.id ? { ...ec, _saved: true } : ec));
+      toast({ title: "Thành công", description: "Đã lưu thiết bị tương thích" });
+    } catch (err) {
+      console.error('Update compatibility failed:', err);
+      toast({ title: "Lỗi", description: "Không thể lưu", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Xóa sản phẩm này?")) return;
+    try { await productApi.delete(id); toast({ title: "Đã xóa" }); await fetchProducts(); }
+    catch { toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" }); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Tìm sản phẩm..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filtered.length} sản phẩm</span>
+          <Button onClick={handleOpenAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Thêm SP</Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ảnh</TableHead>
+                <TableHead>Tên</TableHead>
+                <TableHead>Brand</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Giá</TableHead>
+                <TableHead>Variants</TableHead>
+                <TableHead>Active</TableHead>
+                <TableHead className="text-right w-[120px]">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(p => (
+                <TableRow key={p.id}>
+                  <TableCell>
+                    <img src={p.image} alt="" className="w-10 h-10 rounded object-cover"
+                      onError={e => (e.currentTarget.src = 'https://placehold.co/40')} />
+                  </TableCell>
+                  <TableCell className="font-medium max-w-[180px] truncate">{p.name}</TableCell>
+                  <TableCell>{p.brand}</TableCell>
+                  <TableCell>{p.category}</TableCell>
+                  <TableCell>{p.price.toLocaleString('vi-VN')}đ</TableCell>
+                  <TableCell>
+                    {p.colorVariants && p.colorVariants.length > 0 ? (
+                      <div className="flex gap-1">
+                        {p.colorVariants.slice(0, 3).map(cv => (
+                          <div key={cv.id} className="w-4 h-4 rounded-full border" style={{ backgroundColor: cv.colorCode }} title={cv.name} />
+                        ))}
+                        {p.colorVariants.length > 3 && <span className="text-xs text-muted-foreground">+{p.colorVariants.length - 3}</span>}
+                      </div>
+                    ) : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${p.isActive !== false ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                      {p.isActive !== false ? 'Bật' : 'Tắt'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleViewDetail(p.id)} title="Xem chi tiết">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(p)} title="Chỉnh sửa">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)} title="Xóa">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Không có sản phẩm</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}</DialogTitle>
+          </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Tên sản phẩm *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-              />
+              <Label>Tên sản phẩm *</Label>
+              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
             </div>
-
             <div className="grid gap-2">
-              <Label htmlFor="description">Mô tả</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                rows={3}
-              />
+              <Label>Mô tả</Label>
+              <Textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} rows={2} />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="price">Giá (VNĐ) *</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({...formData, price: Number(e.target.value)})}
-                />
+                <Label>Giá (VNĐ) *</Label>
+                <Input type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: Number(e.target.value) })} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="image">URL hình ảnh</Label>
-                <Input
-                  id="image"
-                  value={formData.image}
-                  onChange={(e) => setFormData({...formData, image: e.target.value})}
-                />
+                <Label>URL hình ảnh</Label>
+                <Input value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Thương hiệu *</Label>
-                <Select
-                  value={formData.brandId}
-                  onValueChange={(value) => {
-                    const brand = brands.find(b => b.id === value);
-                    setFormData({...formData, brandId: value, brandName: brand?.name || ''});
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn thương hiệu" />
-                  </SelectTrigger>
+                <Select value={formData.brandId} onValueChange={v => setFormData({ ...formData, brandId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Chọn..." /></SelectTrigger>
                   <SelectContent>
-                    {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.id}>
-                        {brand.name}
-                      </SelectItem>
-                    ))}
+                    {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Danh mục *</Label>
-                <Select
-                  value={formData.categoryId}
-                  onValueChange={(value) => {
-                    const cat = categories.find(c => c.id === value);
-                    setFormData({...formData, categoryId: value, categoryName: cat?.name || ''});
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn danh mục" />
-                  </SelectTrigger>
+                <Select value={formData.categoryId} onValueChange={v => setFormData({ ...formData, categoryId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Chọn..." /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} className="rounded" />
+              <span className="text-sm">Đang bán</span>
+            </label>
 
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
-                  className="rounded"
-                />
-                <span className="text-sm">Đang bán</span>
-              </label>
-            </div>
-
-            {/* Color Variants Section */}
-            <div className="border-t pt-4 mt-2">
-              <div className="flex items-center justify-between mb-4">
+            {/* Variants */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Palette className="h-5 w-5 text-primary" />
-                  <Label className="text-base font-semibold">Biến thể (Product Variants)</Label>
+                  <Palette className="h-4 w-4 text-primary" />
+                  <Label className="font-semibold">Biến thể</Label>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddColorVariant}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Thêm biến thể
+                <Button type="button" variant="outline" size="sm" onClick={() => setColorVariants([...colorVariants, { id: `temp_${Date.now()}`, name: '', colorCode: '#000000', price: formData.price, image: '', stockQuantity: 10, size: 'Default' }])}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
                 </Button>
               </div>
-
               {colorVariants.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4 bg-secondary/50 rounded-lg">
-                  Chưa có biến thể nào. Thêm biến thể để tạo variant với hình ảnh, màu và giá riêng.
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-3 bg-secondary/30 rounded">Chưa có biến thể</p>
               ) : (
-                <div className="space-y-4">
-                  {colorVariants.map((variant) => (
-                    <Card key={variant.id} className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div>
-                            <Label className="text-xs">Tên *</Label>
-                            <Select
-                              value={variant.name}
-                              onValueChange={(value) => {
-                                const preset = PRESET_COLORS.find(c => c.name === value);
-                                if (preset) handleSelectPresetColor(variant.id, preset);
-                              }}
+                <div className="space-y-3">
+                  {colorVariants.map(v => {
+                    const isExisting = !v.id.startsWith('temp_');
+                    return (
+                      <div key={v.id} className={`p-3 border rounded-lg space-y-2 ${isExisting ? 'border-primary/20 bg-primary/5' : ''}`}>
+                        {isExisting && (
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground font-mono">ID: {v.id.slice(0, 12)}...</span>
+                            <Badge variant="outline" className="text-xs">Đã lưu</Badge>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Select value={v.name} onValueChange={val => {
+                            const preset = PRESET_COLORS.find(c => c.name === val);
+                            if (preset) setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, name: preset.name, colorCode: preset.code, _saved: false } : cv));
+                          }}>
+                            <SelectTrigger className="w-[120px]"><SelectValue placeholder="Màu" /></SelectTrigger>
+                            <SelectContent>
+                              {PRESET_COLORS.map(c => (
+                                <SelectItem key={c.code} value={c.name}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full border" style={{ backgroundColor: c.code }} />
+                                    {c.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input type="number" className="w-[100px]" placeholder="Giá" value={v.price} onChange={e => setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, price: Number(e.target.value), _saved: false } : cv))} />
+                          <Input className="flex-1" placeholder="URL ảnh" value={v.image || ''} onChange={e => setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, image: e.target.value, _saved: false } : cv))} />
+                          {isExisting && (
+                            <Button
+                              variant={v._saved ? "outline" : "default"}
+                              size="icon"
+                              className="h-8 w-8 flex-shrink-0"
+                              onClick={() => handleUpdateVariant(v)}
+                              title="Lưu biến thể"
                             >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Chọn màu" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PRESET_COLORS.map((color) => (
-                                  <SelectItem key={color.code} value={color.name}>
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: color.code }} />
-                                      {color.name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Giá (VNĐ)</Label>
-                            <Input
-                              type="number"
-                              value={variant.price}
-                              onChange={(e) => handleUpdateColorVariant(variant.id, "price", Number(e.target.value))}
-                              className="mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Tồn kho</Label>
-                            <Input
-                              type="number"
-                              value={variant.stockQuantity || 10}
-                              onChange={(e) => handleUpdateColorVariant(variant.id, "stockQuantity", Number(e.target.value))}
-                              className="mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">URL hình ảnh</Label>
-                            <Input
-                              type="text"
-                              placeholder="URL"
-                              value={variant.image || ""}
-                              onChange={(e) => handleUpdateColorVariant(variant.id, "image", e.target.value)}
-                              className="mt-1"
-                            />
-                          </div>
+                              <Save className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
+                            if (isExisting) {
+                              if (!confirm(`Xóa biến thể "${v.name}" khỏi sản phẩm?`)) return;
+                              try {
+                                await variantApi.delete(v.id);
+                                toast({ title: "Thành công", description: `Đã xóa biến thể "${v.name}"` });
+                              } catch (err) {
+                                console.error('Delete variant failed:', err);
+                                toast({ title: "Lỗi", description: "Không thể xóa biến thể", variant: "destructive" });
+                                return;
+                              }
+                            }
+                            setColorVariants(colorVariants.filter(cv => cv.id !== v.id));
+                          }}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive flex-shrink-0"
-                          onClick={() => handleRemoveColorVariant(variant.id)}
-                        >
-                          <X className="h-4 w-4" />
+                        {isExisting && (
+                          <div className="flex items-center gap-2 pl-1">
+                            <div className="grid grid-cols-3 gap-2 flex-1">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">SKU</Label>
+                                <Input className="h-7 text-xs" value={v.sku || ''} onChange={e => setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, sku: e.target.value, _saved: false } : cv))} />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Tồn kho</Label>
+                                <Input type="number" className="h-7 text-xs" value={v.stockQuantity ?? 0} onChange={e => setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, stockQuantity: Number(e.target.value), _saved: false } : cv))} />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Size</Label>
+                                <Input className="h-7 text-xs" value={v.size || ''} onChange={e => setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, size: e.target.value, _saved: false } : cv))} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Attributes */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  <Label className="font-semibold">Thuộc tính kỹ thuật</Label>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditAttributes([...editAttributes, { id: `temp_${Date.now()}`, attributeId: '', value: '' }])}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
+                </Button>
+              </div>
+              {editAttributes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3 bg-secondary/30 rounded">Chưa có thuộc tính</p>
+              ) : (
+                <div className="space-y-2">
+                  {editAttributes.map(a => {
+                    const isExisting = !a.id.startsWith('temp_');
+                    return (
+                      <div key={a.id} className={`flex items-center gap-2 p-2 border rounded-lg ${isExisting ? 'border-primary/20 bg-primary/5' : ''}`}>
+                        <Select value={a.attributeId} onValueChange={val => setEditAttributes(editAttributes.map(ea => ea.id === a.id ? { ...ea, attributeId: val, _saved: false } : ea))}>
+                          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Chọn thuộc tính" /></SelectTrigger>
+                          <SelectContent>
+                            {attributes.map(attr => <SelectItem key={attr.id} value={attr.id}>{attr.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input className="flex-1" placeholder="Giá trị (VD: 8GB, Silicone, v.v...)" value={a.value} onChange={e => setEditAttributes(editAttributes.map(ea => ea.id === a.id ? { ...ea, value: e.target.value, _saved: false } : ea))} />
+                        
+                        {isExisting && (
+                          <Button variant={a._saved ? "outline" : "default"} size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleUpdateAttribute(a)} title="Lưu">
+                            <Save className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
+                          if (isExisting) {
+                            if (!confirm("Xóa thuộc tính này?")) return;
+                            try { await productAttributeApi.delete(a.id); toast({ title: "Thành công", description: "Đã xóa thuộc tính" }); } 
+                            catch { toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" }); return; }
+                          }
+                          setEditAttributes(editAttributes.filter(ea => ea.id !== a.id));
+                        }}>
+                          <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                    </Card>
-                  ))}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Compatibilities */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  <Label className="font-semibold">Tương thích thiết bị</Label>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditCompatibilities([...editCompatibilities, { id: `temp_${Date.now()}`, deviceId: '', note: '' }])}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
+                </Button>
+              </div>
+              {editCompatibilities.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3 bg-secondary/30 rounded">Chưa có tương thích</p>
+              ) : (
+                <div className="space-y-2">
+                  {editCompatibilities.map(c => {
+                    const isExisting = !c.id.startsWith('temp_');
+                    return (
+                      <div key={c.id} className={`flex items-center gap-2 p-2 border rounded-lg ${isExisting ? 'border-primary/20 bg-primary/5' : ''}`}>
+                        <Select value={c.deviceId} onValueChange={val => setEditCompatibilities(editCompatibilities.map(ec => ec.id === c.id ? { ...ec, deviceId: val, _saved: false } : ec))}>
+                          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Chọn thiết bị" /></SelectTrigger>
+                          <SelectContent>
+                            {devices.map(dev => <SelectItem key={dev.id} value={dev.id}>{dev.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input className="flex-1" placeholder="Ghi chú (VD: Fit hoàn hảo, Hỗ trợ sạc nhanh...)" value={c.note || ''} onChange={e => setEditCompatibilities(editCompatibilities.map(ec => ec.id === c.id ? { ...ec, note: e.target.value, _saved: false } : ec))} />
+                        
+                        {isExisting && (
+                          <Button variant={c._saved ? "outline" : "default"} size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleUpdateCompatibility(c)} title="Lưu">
+                            <Save className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
+                          if (isExisting) {
+                            if (!confirm("Xóa thiết bị tương thích này?")) return;
+                            try { await compatibilityApi.delete(c.id); toast({ title: "Thành công", description: "Đã xóa thiết bị tương thích" }); } 
+                            catch { toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" }); return; }
+                          }
+                          setEditCompatibilities(editCompatibilities.filter(ec => ec.id !== c.id));
+                        }}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Hủy
-            </Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingProduct ? "Cập nhật" : "Thêm mới"}
@@ -617,6 +845,391 @@ const AdminProducts = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* View Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Chi tiết sản phẩm</DialogTitle>
+          </DialogHeader>
+
+          {isDetailLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : detailProduct ? (
+            <div className="space-y-6">
+              {/* Product image + basic info */}
+              <div className="flex gap-6">
+                <img
+                  src={detailVariants[0]?.imageUrl || 'https://placehold.co/200'}
+                  alt={detailProduct.name}
+                  className="w-32 h-32 rounded-lg object-cover border"
+                  onError={e => (e.currentTarget.src = 'https://placehold.co/200')}
+                />
+                <div className="flex-1 space-y-2">
+                  <h3 className="text-xl font-bold">{detailProduct.name}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{detailProduct.brandName}</Badge>
+                    <Badge variant="outline">{detailProduct.categoryName}</Badge>
+                    <Badge className={detailProduct.isActive ? 'bg-green-500/10 text-green-600 border-green-200' : 'bg-red-500/10 text-red-600 border-red-200'}>
+                      {detailProduct.isActive ? 'Đang bán' : 'Đã ẩn'}
+                    </Badge>
+                  </div>
+                  <p className="text-2xl font-bold text-primary">
+                    {detailProduct.price.toLocaleString('vi-VN')}đ
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <Label className="text-sm font-semibold text-muted-foreground">Mô tả</Label>
+                <p className="mt-1 text-sm">{detailProduct.description || 'Chưa có mô tả'}</p>
+              </div>
+
+              {/* IDs */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Product ID</Label>
+                  <p className="font-mono text-xs break-all">{detailProduct.id}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Brand ID</Label>
+                  <p className="font-mono text-xs break-all">{detailProduct.brandId}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Category ID</Label>
+                  <p className="font-mono text-xs break-all">{detailProduct.categoryId}</p>
+                </div>
+              </div>
+
+              {/* Variants */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Palette className="h-4 w-4 text-primary" />
+                  <Label className="font-semibold">Biến thể ({detailVariants.length})</Label>
+                </div>
+                {detailVariants.length > 0 ? (
+                  <div className="space-y-3">
+                    {detailVariants.map(v => (
+                      <div key={v.id} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                        <img
+                          src={v.imageUrl || 'https://placehold.co/60'}
+                          alt={v.name}
+                          className="w-14 h-14 rounded object-cover border"
+                          onError={e => (e.currentTarget.src = 'https://placehold.co/60')}
+                        />
+                        <div
+                          className="w-6 h-6 rounded-full border-2 border-border flex-shrink-0"
+                          style={{ backgroundColor: v.color }}
+                          title={v.color}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium">{v.name}</p>
+                          <p className="text-xs text-muted-foreground">SKU: {v.sku} &middot; Size: {v.size}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold">{v.price.toLocaleString('vi-VN')}đ</p>
+                          <p className="text-xs text-muted-foreground">Kho: {v.stockQuantity}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4 bg-secondary/30 rounded">Chưa có biến thể</p>
+                )}
+              </div>
+
+              {/* Attributes & Compatibilities Grid */}
+              <div className="grid grid-cols-2 gap-6 border-t pt-4">
+                {/* Attributes */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Check className="h-4 w-4 text-primary" />
+                    <Label className="font-semibold">Thuộc tính kỹ thuật</Label>
+                  </div>
+                  {detailAttributes.length > 0 ? (
+                    <div className="space-y-2">
+                      {detailAttributes.map(a => {
+                        const attrName = attributes.find(attr => attr.id === a.attributeId)?.name || a.attributeId;
+                        return (
+                          <div key={a.id} className="flex justify-between items-center bg-muted/30 p-2 rounded text-sm">
+                            <span className="text-muted-foreground">{attrName}:</span>
+                            <span className="font-medium">{a.value}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-2 bg-secondary/30 rounded">Chưa có thuộc tính</p>
+                  )}
+                </div>
+
+                {/* Compatibilities */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Check className="h-4 w-4 text-primary" />
+                    <Label className="font-semibold">Tương thích thiết bị</Label>
+                  </div>
+                  {detailCompatibilities.length > 0 ? (
+                    <div className="space-y-2">
+                      {detailCompatibilities.map(c => {
+                        const devName = devices.find(d => d.id === c.deviceId)?.name || c.deviceId;
+                        return (
+                          <div key={c.id} className="bg-muted/30 p-2 rounded text-sm space-y-1">
+                            <p className="font-medium">{devName}</p>
+                            {c.note && <p className="text-xs text-muted-foreground italic">{c.note}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-2 bg-secondary/30 rounded">Chưa có thiết bị tương thích</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">Không tìm thấy sản phẩm</p>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ======================================
+// Main Admin Products Page with Tabs
+// ======================================
+const AdminProducts = () => {
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [devices, setDevices] = useState<ApiDevice[]>([]);
+  const [attributes, setAttributes] = useState<ApiAttribute[]>([]);
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+
+  // Fetch reference data for FK dropdowns
+  useEffect(() => {
+    const load = async () => {
+      const [b, c, d, a, p] = await Promise.all([
+        brandService.getAll().catch(() => []),
+        categoryService.getAll().catch(() => []),
+        deviceService.getAll().catch(() => []),
+        attributeService.getAll().catch(() => []),
+        productApi.getAll().catch(() => []),
+      ]);
+      setBrands(b); setCategories(c); setDevices(d); setAttributes(a); setProducts(p);
+    };
+    load();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Quản lý sản phẩm</h1>
+
+      <Tabs defaultValue="products" className="w-full">
+        <TabsList className="grid w-[400px] grid-cols-2 h-auto mb-6">
+          <TabsTrigger value="products" className="py-2 font-medium">Sản phẩm</TabsTrigger>
+          <TabsTrigger value="details" className="py-2 font-medium">Thông tin chi tiết</TabsTrigger>
+        </TabsList>
+
+        {/* === Products === */}
+        <TabsContent value="products">
+          <Card>
+            <CardContent className="pt-6">
+              <ProductsTab brands={brands} categories={categories} devices={devices} attributes={attributes} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === Details === */}
+        <TabsContent value="details">
+          <Tabs defaultValue="brands" className="w-full">
+            <TabsList className="grid w-full grid-cols-6 h-auto mb-6">
+              <TabsTrigger value="brands" className="text-xs py-2">Thương hiệu</TabsTrigger>
+              <TabsTrigger value="categories" className="text-xs py-2">Danh mục</TabsTrigger>
+              <TabsTrigger value="devices" className="text-xs py-2">Thiết bị</TabsTrigger>
+              <TabsTrigger value="attributes" className="text-xs py-2">Thuộc tính</TabsTrigger>
+              <TabsTrigger value="compatibility" className="text-xs py-2">Tương thích</TabsTrigger>
+              <TabsTrigger value="prodAttributes" className="text-xs py-2">Thuộc tính SP</TabsTrigger>
+            </TabsList>
+
+        {/* === Brands === */}
+        <TabsContent value="brands">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<Brand>
+                title="Thương hiệu"
+                searchField="name"
+                columns={[
+                  { key: 'name', label: 'Tên' },
+                  { key: 'description', label: 'Mô tả' },
+                  { key: 'logoUrl', label: 'Logo URL', render: (b) => b.logoUrl ? <img src={b.logoUrl} className="w-8 h-8 rounded" onError={e => (e.currentTarget.style.display = 'none')} /> : '-' },
+                ]}
+                fields={[
+                  { key: 'name', label: 'Tên thương hiệu', type: 'text', required: true },
+                  { key: 'description', label: 'Mô tả', type: 'textarea' },
+                  { key: 'logoUrl', label: 'URL Logo', type: 'text', placeholder: 'https://...' },
+                ]}
+                fetchAll={() => brandService.getAll()}
+                onCreate={(data) => brandService.create(data)}
+                onUpdate={(id, data) => brandService.update(id, data)}
+                onDelete={(id) => brandService.delete(id)}
+                getFormDefaults={() => ({ name: '', description: '', logoUrl: '' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === Categories === */}
+        <TabsContent value="categories">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<ApiCategory>
+                title="Danh mục"
+                searchField="name"
+                columns={[
+                  { key: 'name', label: 'Tên' },
+                  { key: 'slug', label: 'Slug' },
+                  { key: 'parentName', label: 'Danh mục cha', render: (c) => c.parentName || '-' },
+                ]}
+                fields={[
+                  { key: 'name', label: 'Tên danh mục', type: 'text', required: true },
+                  { key: 'slug', label: 'Slug', type: 'text', required: true, placeholder: 'vd: op-lung' },
+                  {
+                    key: 'parentId', label: 'Danh mục cha', type: 'select', options: [
+                      { value: '__none__', label: '-- Không --' },
+                      ...categories.map(c => ({ value: c.id, label: c.name })),
+                    ]
+                  },
+                ]}
+                fetchAll={() => categoryService.getAll()}
+                onCreate={(data) => categoryService.create({ ...data, parentId: data.parentId === '__none__' ? null : data.parentId || null })}
+                onUpdate={(id, data) => categoryService.update(id, { ...data, parentId: data.parentId === '__none__' ? null : data.parentId || null })}
+                onDelete={(id) => categoryService.delete(id)}
+                getFormDefaults={() => ({ name: '', slug: '', parentId: '__none__' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === Devices === */}
+        <TabsContent value="devices">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<ApiDevice>
+                title="Thiết bị"
+                searchField="name"
+                columns={[
+                  { key: 'name', label: 'Tên' },
+                  { key: 'description', label: 'Mô tả' },
+                ]}
+                fields={[
+                  { key: 'name', label: 'Tên thiết bị', type: 'text', required: true },
+                  { key: 'description', label: 'Mô tả', type: 'textarea', required: true },
+                ]}
+                fetchAll={() => deviceService.getAll()}
+                onCreate={(data) => deviceService.create(data)}
+                onUpdate={(id, data) => deviceService.update(id, data)}
+                onDelete={(id) => deviceService.delete(id)}
+                getFormDefaults={() => ({ name: '', description: '' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === Attributes === */}
+        <TabsContent value="attributes">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<ApiAttribute>
+                title="Thuộc tính"
+                searchField="name"
+                columns={[
+                  { key: 'name', label: 'Tên' },
+                  { key: 'dataType', label: 'Kiểu dữ liệu' },
+                ]}
+                fields={[
+                  { key: 'name', label: 'Tên thuộc tính', type: 'text', required: true },
+                  {
+                    key: 'dataType', label: 'Kiểu dữ liệu', type: 'select', required: true, options: [
+                      { value: 'String', label: 'String' },
+                      { value: 'Number', label: 'Number' },
+                      { value: 'Boolean', label: 'Boolean' },
+                    ]
+                  },
+                ]}
+                fetchAll={() => attributeService.getAll()}
+                onCreate={(data) => attributeService.create(data)}
+                onUpdate={(id, data) => attributeService.update(id, data)}
+                onDelete={(id) => attributeService.delete(id)}
+                getFormDefaults={() => ({ name: '', dataType: 'String' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === ProductCompatibility === */}
+        <TabsContent value="compatibility">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<ApiProductCompatibility>
+                title="Tương thích"
+                searchField="productName"
+                columns={[
+                  { key: 'productName', label: 'Sản phẩm', render: (c) => c.productName || products.find(p => p.id === c.productId)?.name || c.productId.slice(0, 8) },
+                  { key: 'deviceName', label: 'Thiết bị', render: (c) => c.deviceName || devices.find(d => d.id === c.deviceId)?.name || c.deviceId.slice(0, 8) },
+                  { key: 'note', label: 'Ghi chú' },
+                ]}
+                fields={[
+                  { key: 'productId', label: 'Sản phẩm', type: 'select', required: true, options: products.map(p => ({ value: p.id, label: p.name })) },
+                  { key: 'deviceId', label: 'Thiết bị', type: 'select', required: true, options: devices.map(d => ({ value: d.id, label: d.name })) },
+                  { key: 'note', label: 'Ghi chú', type: 'text' },
+                ]}
+                fetchAll={() => compatibilityApi.getAll()}
+                onCreate={(data) => compatibilityApi.create(data)}
+                onUpdate={(id, data) => compatibilityApi.update(id, data)}
+                onDelete={(id) => compatibilityApi.delete(id)}
+                getFormDefaults={() => ({ productId: '', deviceId: '', note: '' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === ProductAttributes === */}
+        <TabsContent value="prodAttributes">
+          <Card>
+            <CardContent className="pt-6">
+              <GenericCrudTab<ApiProductAttribute>
+                title="Thuộc tính SP"
+                searchField="value"
+                columns={[
+                  { key: 'productName', label: 'Sản phẩm', render: (a) => a.productName || products.find(p => p.id === a.productId)?.name || a.productId.slice(0, 8) },
+                  { key: 'attributeName', label: 'Thuộc tính', render: (a) => a.attributeName || attributes.find(at => at.id === a.attributeId)?.name || a.attributeId.slice(0, 8) },
+                  { key: 'value', label: 'Giá trị' },
+                ]}
+                fields={[
+                  { key: 'productId', label: 'Sản phẩm', type: 'select', required: true, options: products.map(p => ({ value: p.id, label: p.name })) },
+                  { key: 'attributeId', label: 'Thuộc tính', type: 'select', required: true, options: attributes.map(a => ({ value: a.id, label: a.name })) },
+                  { key: 'value', label: 'Giá trị', type: 'text', required: true },
+                ]}
+                fetchAll={() => productAttributeApi.getAll()}
+                onCreate={(data) => productAttributeApi.create(data)}
+                onUpdate={(id, data) => productAttributeApi.update(id, data)}
+                onDelete={(id) => productAttributeApi.delete(id)}
+                getFormDefaults={() => ({ productId: '', attributeId: '', value: '' })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+          </Tabs>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
