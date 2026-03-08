@@ -34,9 +34,13 @@ const ProductFilter = ({ filters, onFilterChange }: ProductFilterProps) => {
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
   const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
 
-  const displayBrands = apiBrands.length > 0 ? apiBrands : brands;
+  const displayBrands = apiBrands.length > 0
+    ? apiBrands.filter((brand, index, arr) => arr.findIndex(b => b.name === brand.name) === index)
+    : brands;
   const displayCategories = apiCategories.length > 0
-    ? apiCategories.map(c => ({ id: c.id, name: c.name, icon: 'Smartphone' }))
+    ? apiCategories
+        .map(c => ({ id: c.id, name: c.name, icon: 'Smartphone' }))
+        .filter((cat, index, arr) => arr.findIndex(c => c.name === cat.name) === index)
     : categories;
   const displayDevices = apiDevices.length > 0
     ? apiDevices.map(d => d.name)
