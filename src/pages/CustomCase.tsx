@@ -182,9 +182,7 @@ const CameraModule = ({ style, position }: { style: string; position: string }) 
 // Notch component based on phone style
 const NotchModule = ({ style }: { style: string }) => {
   if (style === "dynamic-island") {
-    return (
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-24 h-7 bg-gray-900 rounded-full" />
-    );
+    return null;
   }
   
   if (style === "notch") {
@@ -512,20 +510,44 @@ const NotchModule = ({ style }: { style: string }) => {
         </div>
 
         {/* Features */}
-        <div className="mt-16 grid md:grid-cols-4 gap-6">
-          {[
-            { icon: "🎨", title: "Thiết kế tự do", desc: "Tùy chỉnh mọi thứ theo ý bạn" },
-            { icon: "🚀", title: "Giao hàng nhanh", desc: "3-5 ngày làm việc" },
-            { icon: "💎", title: "Chất lượng cao", desc: "In UV sắc nét, bền màu" },
-            { icon: "🔄", title: "Đổi trả dễ dàng", desc: "Đổi trả trong 7 ngày" },
-          ].map((feature) => (
-            <div key={feature.title} className="text-center p-6 rounded-xl bg-muted/50">
-              <div className="text-4xl mb-3">{feature.icon}</div>
-              <h3 className="font-semibold mb-1">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.desc}</p>
-            </div>
-          ))}
-        </div>
+        <section className="mt-20">
+          <div className="mb-7 flex items-end justify-between gap-4 border-b border-border/60 pb-4">
+            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Cam kết dịch vụ</h2>
+            <p className="text-base text-muted-foreground md:text-lg">Đơn giản, rõ ràng, đáng tin cậy</p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                title: "Thiết kế theo yêu cầu",
+                desc: "Tùy chỉnh nội dung linh hoạt theo nhu cầu cá nhân hoặc doanh nghiệp.",
+              },
+              {
+                title: "Thời gian xử lý nhanh",
+                desc: "Hoàn thiện và bàn giao trong 3-5 ngày làm việc.",
+              },
+              {
+                title: "Tiêu chuẩn in chất lượng",
+                desc: "Mực in bền màu, chi tiết rõ nét, kiểm tra kỹ trước khi giao.",
+              },
+              {
+                title: "Hỗ trợ đổi trả",
+                desc: "Hỗ trợ đổi trả trong vòng 7 ngày theo chính sách hiện hành.",
+              },
+            ].map((feature, index) => (
+              <article
+                key={feature.title}
+                className="transform-gpu rounded-2xl border border-border/70 bg-card/80 p-7 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-primary/50 hover:shadow-[0_18px_38px_-18px_rgba(56,189,248,0.55)] md:p-8"
+              >
+                <p className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground/90">
+                  {`0${index + 1}`}
+                </p>
+                <h3 className="mb-3 text-xl font-semibold leading-snug md:text-2xl">{feature.title}</h3>
+                <p className="text-base leading-relaxed text-muted-foreground md:text-lg">{feature.desc}</p>
+              </article>
+            ))}
+          </div>
+        </section>
       </main>
 
       <Footer />
