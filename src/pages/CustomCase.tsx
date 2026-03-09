@@ -1,16 +1,16 @@
- import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
  import { Palette, Smartphone, ShoppingCart, Sparkles, RotateCcw, PenTool } from "lucide-react";
  import CaseDesignEditor from "@/components/CaseDesignEditor";
+import { deviceService } from "@/services/DeviceService";
+import { ApiDevice } from "@/types/product";
 import { toast } from "sonner";
 
 // Phone models with specific designs
@@ -104,7 +104,7 @@ const phoneModels: Record<string, {
   },
 };
 
-const availableDevices = Object.keys(phoneModels);
+const defaultAvailableDevices = Object.keys(phoneModels);
 
 const caseColors = [
   { id: "transparent", name: "Trong suốt", color: "bg-gray-100 border-2 border-dashed" },
@@ -224,8 +224,31 @@ const NotchModule = ({ style }: { style: string }) => {
   const [selectedDevice, setSelectedDevice] = useState("");
   const [selectedColor, setSelectedColor] = useState("transparent");
   const [selectedMaterial, setSelectedMaterial] = useState("soft");
-   const [designElements, setDesignElements] = useState<DesignElement[]>([]);
+    const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
+    const [isDeviceLoading, setIsDeviceLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
+
+    const availableDevices = apiDevices.length > 0
+      ? apiDevices.map((device) => device.name)
+      : defaultAvailableDevices;
+
+    useEffect(() => {
+      const fetchDevices = async () => {
+        setIsDeviceLoading(true);
+        try {
+          const devices = await deviceService.getAll();
+          if (devices.length > 0) {
+            setApiDevices(devices);
+          }
+        } catch (error) {
+          console.warn("Failed to fetch devices for custom case page", error);
+        } finally {
+          setIsDeviceLoading(false);
+        }
+      };
+
+      fetchDevices();
+    }, []);
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
   
@@ -247,16 +270,14 @@ const NotchModule = ({ style }: { style: string }) => {
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
   const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
 
- 
-   const handleDesignChange = useCallback((elements: DesignElement[]) => {
-     setDesignElements(elements);
+  const handleDesignChange = useCallback((_elements: DesignElement[]) => {
+    // Keeps callback stable for editor updates; custom design payload can be wired to cart later.
    }, []);
 
   const handleReset = () => {
     setSelectedDevice("");
     setSelectedColor("transparent");
     setSelectedMaterial("soft");
-     setDesignElements([]);
     setQuantity(1);
     toast.info("Đã reset thiết kế");
   };
@@ -346,7 +367,7 @@ const NotchModule = ({ style }: { style: string }) => {
               <CardContent>
                 <Select value={selectedDevice} onValueChange={setSelectedDevice}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Chọn model điện thoại của bạn" />
+                    <SelectValue placeholder={isDeviceLoading ? "Đang tải danh sách thiết bị..." : "Chọn model điện thoại của bạn"} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableDevices.map((device) => (
@@ -497,8 +518,8 @@ const NotchModule = ({ style }: { style: string }) => {
             { icon: "🚀", title: "Giao hàng nhanh", desc: "3-5 ngày làm việc" },
             { icon: "💎", title: "Chất lượng cao", desc: "In UV sắc nét, bền màu" },
             { icon: "🔄", title: "Đổi trả dễ dàng", desc: "Đổi trả trong 7 ngày" },
-          ].map((feature, index) => (
-            <div key={index} className="text-center p-6 rounded-xl bg-muted/50">
+          ].map((feature) => (
+            <div key={feature.title} className="text-center p-6 rounded-xl bg-muted/50">
               <div className="text-4xl mb-3">{feature.icon}</div>
               <h3 className="font-semibold mb-1">{feature.title}</h3>
               <p className="text-sm text-muted-foreground">{feature.desc}</p>
