@@ -20,9 +20,11 @@ const ITEMS_PER_PAGE = 12;
 
 interface ProductGridProps {
   onAddToCart: (product: Product) => void;
+  /** When true: shows only 4 products, no filters, no toolbar, no pagination */
+  featuredMode?: boolean;
 }
 
-const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
+const ProductGrid = ({ onAddToCart, featuredMode = false }: ProductGridProps) => {
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
   const categoryParam = searchParams.get("category") || "";
@@ -84,6 +86,9 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
   const filteredProducts = useMemo(() => {
     let result = [...allProducts];
 
+    // In featured mode just return first 4 active products
+    if (featuredMode) return result.slice(0, 4);
+
     // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -138,7 +143,7 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
     }
 
     return result;
-  }, [allProducts, filters, sortBy, searchQuery]);
+  }, [allProducts, filters, sortBy, searchQuery, featuredMode]);
 
   // Pagination
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
@@ -146,6 +151,29 @@ const ProductGrid = ({ onAddToCart }: ProductGridProps) => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  if (featuredMode) {
+    return (
+      <section className="py-4">
+        <div className="container">
+          {isLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:gap-6 grid-cols-2 md:grid-cols-4">
+              {filteredProducts.map((product, index) => (
+                <div key={product.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
+                  <ProductCard product={product} onQuickView={setQuickViewProduct} onAddToCart={onAddToCart} />
+                </div>
+              ))}
+            </div>
+          )}
+          <QuickViewModal product={quickViewProduct} onClose={() => setQuickViewProduct(null)} onAddToCart={onAddToCart} />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-8 md:py-12">

@@ -13,11 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Product } from "@/types/product";
-import { SavedAddress, User } from "@/types/user";
+import { ColorVariant, Product } from "@/types/product";
+import { SavedAddress } from "@/types/user";
+import { useCart } from "@/contexts/CartContext";
+import { Order } from "@/types/order";
+import { generateOrderNumber, prependStoredOrder, updateStoredOrder } from "@/lib/orderStorage";
 
 interface CartItem extends Product {
   quantity: number;
+  selectedColor?: ColorVariant;
+  variantId?: string;
 }
 
 const paymentMethods = [
@@ -34,9 +39,17 @@ const provinces = [
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const cartItems: CartItem[] = location.state?.cartItems || [];
+  const { items, clearCart } = useCart();
+  const locationCartItems: CartItem[] | undefined = location.state?.cartItems;
+  const isBuyNow = Boolean(location.state?.buyNow);
+  const cartItems: CartItem[] = locationCartItems || items.map((item) => ({
+    ...item.product,
+    quantity: item.quantity,
+    selectedColor: item.selectedColor,
+    variantId: item.variantId,
+  }));
   const appliedDiscount = location.state?.discount || 0;
-  const { user, setAuth } = useAuth();
+  const { user, token, setAuth } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -86,8 +99,8 @@ const Checkout = () => {
     
     updatedAddresses.push(newAddress);
     
-    const updatedUser = { ...user!, savedAddresses: updatedAddresses };
-    setAuth(updatedUser, null);
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    setAuth(updatedUser, token);
   };
 
   const deleteAddress = (addressId: string) => {
@@ -100,8 +113,8 @@ const Checkout = () => {
       updatedAddresses[0].isDefault = true;
     }
     
-    const updatedUser = { ...user!, savedAddresses: updatedAddresses };
-    setAuth(updatedUser, null);
+    const updatedUser = { ...user, savedAddresses: updatedAddresses };
+    setAuth(updatedUser, token);
   };
 
   const savedAddresses = getSavedAddresses();
@@ -139,10 +152,52 @@ const Checkout = () => {
     }).format(price);
   };
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const getItemUnitPrice = (item: CartItem) => {
+    const price = item.selectedColor?.price ?? item.price;
+    const discount = item.selectedColor?.discount ?? item.discount ?? 0;
+    return price * (1 - discount / 100);
+  };
+
+  const subtotal = cartItems.reduce((sum, item) => sum + getItemUnitPrice(item) * item.quantity, 0);
   const discountAmount = (subtotal * appliedDiscount) / 100;
   const shippingFee = subtotal >= 500000 ? 0 : 30000;
   const total = subtotal - discountAmount + shippingFee;
+
+  const buildStoredOrder = (apiOrderId?: string, paymentUrl?: string, paymentStatus?: Order["paymentStatus"]): Order => ({
+    id: apiOrderId || `local_${Date.now()}`,
+    apiOrderId,
+    accountId: user?.id,
+    orderNumber: generateOrderNumber(),
+    createdAt: new Date().toISOString(),
+    status: paymentMethod === "cod" ? "confirmed" : "pending",
+    paymentStatus: paymentStatus || (paymentMethod === "cod" ? "cod" : "pending"),
+    items: cartItems.map((item) => ({
+      product: {
+        ...item,
+        image: item.selectedColor?.image || item.image,
+        price: item.selectedColor?.price ?? item.price,
+      },
+      quantity: item.quantity,
+      price: getItemUnitPrice(item),
+    })),
+    subtotal,
+    discount: discountAmount,
+    shippingFee,
+    total,
+    shippingAddress: {
+      fullName: formData.fullName,
+      phone: formData.phone,
+      address: formData.address,
+      province: formData.province,
+      district: formData.district,
+      ward: formData.ward,
+    },
+    paymentMethod: paymentMethods.find((item) => item.id === paymentMethod)?.name || paymentMethod,
+    paymentUrl,
+    deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString("vi-VN"),
+    deliveryTime: "08:00 - 18:00",
+    trackingNumber: paymentMethod === "cod" ? `VC${Date.now()}` : undefined,
+  });
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -153,6 +208,12 @@ const Checkout = () => {
   };
 
   const handleSubmit = async () => {
+    if (cartItems.length === 0) {
+      toast.error("Không có sản phẩm để thanh toán");
+      navigate("/cart");
+      return;
+    }
+
     if (!formData.fullName || !formData.phone || !formData.province || !formData.address) {
       toast.error("Vui lòng điền đầy đủ thông tin giao hàng");
       return;
@@ -197,30 +258,48 @@ const Checkout = () => {
           orderItems,
         });
 
+        const storedOrder = buildStoredOrder(order.id);
+        prependStoredOrder(storedOrder);
+
         // If payment method is bank transfer, create PayOS payment
-        if (paymentMethod === 'bank' || paymentMethod === 'vnpay') {
+        if (paymentMethod === 'bank' || paymentMethod === 'vnpay' || paymentMethod === 'momo') {
           try {
             const { paymentService } = await import('@/services/PaymentService');
             const payment = await paymentService.createPayOSPayment(order.id);
             if (payment.checkoutUrl || payment.paymentUrl) {
-              window.location.href = payment.checkoutUrl || payment.paymentUrl || '';
+              updateStoredOrder(storedOrder.id, {
+                paymentUrl: payment.checkoutUrl || payment.paymentUrl,
+                paymentStatus: 'pending',
+              });
+              globalThis.location.href = payment.checkoutUrl || payment.paymentUrl || '';
               return;
             }
           } catch (payErr) {
             console.warn('Payment creation failed, order still created', payErr);
+            updateStoredOrder(storedOrder.id, { paymentStatus: 'failed' });
+            navigate(`/payment/failed?orderId=${storedOrder.id}`);
+            return;
           }
         }
 
+        if (!isBuyNow) {
+          clearCart();
+        }
         toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
-        navigate("/order-tracking");
+        navigate(`/payment/success?orderId=${storedOrder.id}`);
       } else {
-        // No user or no items, simulate success
+        const storedOrder = buildStoredOrder(undefined, undefined, paymentMethod === 'cod' ? 'cod' : 'pending');
+        prependStoredOrder(storedOrder);
+        if (!isBuyNow) {
+          clearCart();
+        }
         toast.success("Đặt hàng thành công! Cảm ơn bạn đã mua hàng.");
-        navigate("/");
+        navigate(`/payment/success?orderId=${storedOrder.id}`);
       }
     } catch (err) {
       console.error('Order creation failed:', err);
       toast.error("Có lỗi khi tạo đơn hàng. Vui lòng thử lại.");
+      navigate("/payment/failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -316,11 +395,19 @@ const Checkout = () => {
                   {savedAddresses.map((address) => (
                     <div
                       key={address.id}
+                      role="button"
+                      tabIndex={0}
                       className={cn(
                         "flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all",
                         selectedAddressId === address.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
                       )}
                       onClick={() => handleSelectAddress(address)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleSelectAddress(address);
+                        }
+                      }}
                     >
                       <RadioGroupItem
                         value={address.id}
@@ -606,9 +693,9 @@ const Checkout = () => {
 
               <p className="text-xs text-muted-foreground text-center mt-4">
                 Bằng việc đặt hàng, bạn đồng ý với{" "}
-                <a href="#" className="text-primary hover:underline">Điều khoản sử dụng</a>
+                <a href="/support" className="text-primary hover:underline">Điều khoản sử dụng</a>
                 {" "}và{" "}
-                <a href="#" className="text-primary hover:underline">Chính sách bảo mật</a>
+                <a href="/support" className="text-primary hover:underline">Chính sách bảo mật</a>
               </p>
             </div>
           </div>

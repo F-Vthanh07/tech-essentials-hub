@@ -12,42 +12,6 @@ import LoginForm from "@/components/auth/LoginForm";
 import RegisterForm from "@/components/auth/RegisterForm";
 import OtpVerifyForm from "@/components/auth/OtpVerifyForm";
 
-// helper to deal with backend responses and normalize to User type
-const normalizeUser = (data: any): User | null => {
-  if (!data) return null;
-
-  let user: any = null;
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (item && typeof item === 'object' && (item.email || item.userName || item.name || item.id)) {
-        user = item;
-        break;
-      }
-    }
-    if (!user) {
-      const firstObj = data.find((i: any) => i && typeof i === 'object');
-      user = firstObj || null;
-    }
-  } else if (typeof data === 'object') {
-    user = data;
-  }
-
-  if (!user) return null;
-
-  return {
-    id: user.id || `temp_${Date.now()}`,
-    email: user.email || '',
-    name: user.userName || user.name || user.email?.split('@')[0] || 'User',
-    phone: user.phone || user.phoneNumber || undefined,
-    avatar: user.avatar || undefined,
-    points: user.points || 0,
-    membershipLevel: user.membershipLevel || 'bronze',
-    totalSpent: user.totalSpent || 0,
-    createdAt: user.createdAt || new Date().toISOString(),
-    savedAddresses: user.savedAddresses || undefined,
-  };
-};
-
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -72,46 +36,25 @@ const Auth = () => {
     try {
       const resp: any = await authService.login({ email, password });
 
-      let userData: User | null = null;
-      let token: string | null = null;
+      // New API response: { id, token, email, role }
+      const userData: User = {
+        id: resp.id || `temp_${Date.now()}`,
+        email: resp.email || email,
+        name: (resp.email || email).split('@')[0],
+        role: resp.role ?? undefined,
+        points: 0,
+        membershipLevel: 'bronze',
+        totalSpent: 0,
+        createdAt: new Date().toISOString(),
+      };
+      const token: string | null = resp.token ?? null;
 
-      if (typeof resp === 'string' && resp.toLowerCase().includes('login success')) {
-        const idMatch = resp.match(/ID\s*:\s*([a-f0-9\-]+)/i);
-        const userId = idMatch ? idMatch[1] : `temp_${Date.now()}`;
-        const tokenMatch = resp.match(/jwt\s*Key\s*:\s*(\S+)/i);
-        token = tokenMatch ? tokenMatch[1] : null;
-
-        userData = {
-          id: userId, email, name: email.split('@')[0],
-          points: 0, membershipLevel: 'bronze', totalSpent: 0,
-          createdAt: new Date().toISOString(),
-        };
-      } else {
-        const raw = resp?.user || resp;
-        userData = normalizeUser(raw);
-        token = resp?.token ?? null;
-      }
-
-      if (userData) {
-        setAuth(userData, token);
-        toast.success("Đăng nhập thành công!");
-        navigate("/");
-      } else {
-        toast.error("Email hoặc mật khẩu không đúng");
-      }
+      setAuth(userData, token);
+      toast.success("Đăng nhập thành công!");
+      navigate(resp.role === 'Admin' ? '/admin' : '/');
     } catch (err) {
       console.warn('API login failed', err);
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const passwords = JSON.parse(localStorage.getItem('passwords') || '{}');
-      const foundUser = users.find((u: User) => u.email === email);
-
-      if (foundUser && passwords[email] === password) {
-        setAuth(foundUser, null);
-        toast.success("Đăng nhập thành công!");
-        navigate("/");
-      } else {
-        toast.error("Email hoặc mật khẩu không đúng");
-      }
+      toast.error("Email hoặc mật khẩu không đúng");
     } finally {
       setIsLoading(false);
     }

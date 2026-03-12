@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronRight,
   Star,
@@ -33,7 +33,7 @@ const getProductDetails = (product: Product) => {
   const galleryImages = product.colorVariants && product.colorVariants.length > 0
     ? product.colorVariants
         .filter(v => v.image)
-        .map(v => v.image!)
+        .map((variant) => variant.image)
         .filter((img, idx, arr) => arr.indexOf(img) === idx) // unique
     : [
         product.image,
@@ -44,8 +44,7 @@ const getProductDetails = (product: Product) => {
 
   // If we only have one image, add some duplicates for gallery
   if (galleryImages.length < 2) {
-    galleryImages.push(product.image);
-    galleryImages.push(product.image.replace("w=400", "w=401"));
+    galleryImages.push(product.image, product.image.replace("w=400", "w=401"));
   }
 
   return {
@@ -59,6 +58,7 @@ const getProductDetails = (product: Product) => {
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -73,7 +73,11 @@ const ProductDetail = () => {
       setIsLoading(true);
       try {
         // Try API first
-        const apiProduct = await productService.getProductById(id!);
+        if (!id) {
+          setProduct(null);
+          return;
+        }
+        const apiProduct = await productService.getProductById(id);
         if (apiProduct) {
           setProduct(apiProduct);
           // Also fetch all products for related products
@@ -157,10 +161,28 @@ const ProductDetail = () => {
   const finalPrice = displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice;
 
   const handleAddToCart = () => {
+    const colorLabel = selectedColor ? ` - ${selectedColor.name}` : "";
     addToCart(product, quantity, selectedColor || undefined);
     toast({
       title: "Đã thêm vào giỏ hàng",
-      description: `${quantity}x ${product.name}${selectedColor ? ` - ${selectedColor.name}` : ''}`,
+      description: `${quantity}x ${product.name}${colorLabel}`,
+    });
+  };
+
+  const handleBuyNow = () => {
+    navigate("/order-detail/confirm", {
+      state: {
+        items: [
+          {
+            ...product,
+            image: selectedColor?.image || product.image,
+            price: selectedColor?.price ?? product.price,
+            quantity,
+            selectedColor: selectedColor || undefined,
+            variantId: selectedColor?.id || product.variantId,
+          },
+        ],
+      },
     });
   };
 
@@ -176,10 +198,10 @@ const ProductDetail = () => {
     if (navigator.share) {
       await navigator.share({
         title: product.name,
-        url: window.location.href,
+        url: globalThis.location.href,
       });
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(globalThis.location.href);
       toast({
         title: "Đã sao chép liên kết",
         description: "Liên kết sản phẩm đã được sao chép vào clipboard",
@@ -331,7 +353,7 @@ const ProductDetail = () => {
                 </div>
               )}
 
-              {/* Quantity & Add to Cart */}
+              {/* Quantity & Buy Actions */}
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <div className="flex items-center border border-border rounded-lg">
                   <Button
@@ -351,9 +373,17 @@ const ProductDetail = () => {
                   </Button>
                 </div>
                 <Button
-                  variant="brand"
                   size="lg"
-                  className="flex-1"
+                  variant="brand"
+                  className="flex-1 shadow-[0_8px_30px_rgba(239,68,68,0.35)]"
+                  onClick={handleBuyNow}
+                >
+                  Mua ngay
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="sm:min-w-[220px]"
                   onClick={handleAddToCart}
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />

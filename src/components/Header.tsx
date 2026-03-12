@@ -206,6 +206,11 @@ const Header = () => {
               </DropdownMenu>
             </li>
             <li>
+              <Button variant="ghost" className="font-medium" onClick={() => navigate('/products')}>
+                Tất cả sản phẩm
+              </Button>
+            </li>
+            <li>
               <Button variant="ghost" className="font-medium text-primary" onClick={() => navigate('/promotions')}>
                 Khuyến mãi Hot 🔥
               </Button>
@@ -256,6 +261,11 @@ const Header = () => {
                   </Button>
                 </li>
               ))}
+              <li>
+                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/products'); setIsMenuOpen(false); }}>
+                  Tất cả sản phẩm
+                </Button>
+              </li>
               <li>
                 <Button variant="ghost" className="w-full justify-start font-medium text-primary" onClick={() => { navigate('/promotions'); setIsMenuOpen(false); }}>
                   Khuyến mãi Hot 🔥

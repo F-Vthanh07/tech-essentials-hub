@@ -4,6 +4,7 @@ import { User } from "@/types/user";
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  role: string | null;
   /**
    * Update the current authenticated user and optionally save a token.
    * Passing `null` for user will clear the authentication state.
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   // hydrate from localStorage on mount
   useEffect(() => {
@@ -27,7 +29,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let normalized: any = null;
         if (parsed && typeof parsed === "object") {
           if (Array.isArray(parsed)) {
-            // try to pick first object with email or name
             normalized = parsed.find((p: any) => p && typeof p === 'object' && (p.email || p.name)) || parsed[0];
           } else {
             normalized = parsed;
@@ -35,6 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         if (normalized) {
           setUser(normalized as User);
+          setRole(normalized.role ?? null);
         }
       } catch (e) {
         console.warn("invalid user in storage", e);
@@ -49,9 +51,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const setAuth = (userData: User | null, authToken: string | null = null) => {
     if (userData) {
       setUser(userData);
+      setRole(userData.role ?? null);
       localStorage.setItem("currentUser", JSON.stringify(userData));
     } else {
       setUser(null);
+      setRole(null);
       localStorage.removeItem("currentUser");
     }
 
@@ -69,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, setAuth, logout }}>
+    <AuthContext.Provider value={{ user, token, role, setAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );

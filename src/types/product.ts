@@ -62,6 +62,9 @@ export interface ApiProduct {
   brandName: string;
   categoryId: string;
   categoryName: string;
+  variants: ApiProductVariant[];
+  productAttributes: ApiProductAttribute[];
+  productCompatibilities: ApiProductCompatibility[];
 }
 
 export interface ApiProductVariant {

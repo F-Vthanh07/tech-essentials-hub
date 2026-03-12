@@ -17,9 +17,12 @@ export interface OrderStatus {
 
 export interface Order {
   id: string;
+  apiOrderId?: string;
+  accountId?: string;
   orderNumber: string;
   createdAt: string;
   status: 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled';
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'cod';
   items: OrderItem[];
   subtotal: number;
   discount: number;
@@ -34,6 +37,7 @@ export interface Order {
     ward: string;
   };
   paymentMethod: string;
+  paymentUrl?: string;
   deliveryDate: string;
   deliveryTime: string;
   trackingNumber?: string;

@@ -69,13 +69,12 @@ function mapVariantToColorVariant(v: ApiProductVariant): ColorVariant {
   };
 }
 
-export function mapApiToProduct(
-  apiProduct: ApiProduct,
-  variants: ApiProductVariant[],
-  compatDevices: string[]
-): Product {
-  const productVariants = variants.filter((v) => v.productId === apiProduct.id);
+export function mapApiToProduct(apiProduct: ApiProduct): Product {
+  const productVariants = apiProduct.variants ?? [];
   const firstVariant = productVariants[0];
+  const compatDevices = (apiProduct.productCompatibilities ?? [])
+    .map((c) => c.deviceName || '')
+    .filter(Boolean);
 
   return {
     id: apiProduct.id,
@@ -105,56 +104,31 @@ export function mapApiToProduct(
 
 export const productService = {
   /**
-   * Fetch all products with their variants merged into frontend Product type.
+   * Fetch all products — variants & compatibilities are embedded in the response.
    */
   async getAllProducts(): Promise<Product[]> {
-    const [apiProducts, allVariants] = await Promise.all([
-      productApi.getAll(),
-      variantApi.getAll(),
-    ]);
-
-    // Try fetching compatibility for device names (non-critical)
-    let compatList: ApiProductCompatibility[] = [];
-    try {
-      compatList = await compatibilityApi.getAll();
-    } catch {
-      // ignore — device info is optional
-    }
-
+    const apiProducts = await productApi.getAll();
     return apiProducts
       .filter((p) => p.isActive)
-      .map((p) => {
-        const deviceNames = compatList
-          .filter((c) => c.productId === p.id)
-          .map((c) => c.deviceName || '');
-        return mapApiToProduct(p, allVariants, deviceNames);
-      });
+      .map(mapApiToProduct);
   },
 
   /**
-   * Fetch single product with full variant details.
+   * Fetch single product by id (falls back to get-all if get-by-id not available).
    */
   async getProductById(id: string): Promise<Product | null> {
     try {
-      const [apiProduct, allVariants] = await Promise.all([
-        productApi.getById(id),
-        variantApi.getAll(),
-      ]);
-
-      let compatList: ApiProductCompatibility[] = [];
-      try {
-        compatList = await compatibilityApi.getAll();
-      } catch {
-        // ignore
-      }
-
-      const deviceNames = compatList
-        .filter((c) => c.productId === id)
-        .map((c) => c.deviceName || '');
-
-      return mapApiToProduct(apiProduct, allVariants, deviceNames);
+      const apiProduct = await productApi.getById(id);
+      return mapApiToProduct(apiProduct);
     } catch {
-      return null;
+      // fallback: search within get-all
+      try {
+        const all = await productApi.getAll();
+        const found = all.find((p) => p.id === id);
+        return found ? mapApiToProduct(found) : null;
+      } catch {
+        return null;
+      }
     }
   },
 };
