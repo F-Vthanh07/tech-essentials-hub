@@ -12,14 +12,13 @@ import {
   Search,
   Calendar,
   CreditCard,
-  XCircle,
-  Loader2
+  XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -27,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { sampleOrders, getOrderStatusSteps } from "@/data/orders";
 import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
+import { getStoredOrders } from "@/lib/orderStorage";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("vi-VN", {
@@ -74,6 +74,12 @@ const getStatusBadge = (status: Order['status']) => {
 
 const OrderStatusTimeline = ({ status }: { status: Order['status'] }) => {
   const steps = getOrderStatusSteps(status);
+  const getStepIcon = (index: number) => {
+    if (index === 0) return Package;
+    if (index === 1) return CheckCircle2;
+    if (index === 2) return Truck;
+    return CheckCircle2;
+  };
 
   if (status === 'cancelled') {
     return (
@@ -98,9 +104,7 @@ const OrderStatusTimeline = ({ status }: { status: Order['status'] }) => {
         </div>
 
         {steps.map((step, index) => {
-          const Icon = index === 0 ? Package : 
-                       index === 1 ? CheckCircle2 : 
-                       index === 2 ? Truck : CheckCircle2;
+          const Icon = getStepIcon(index);
           
           return (
             <div key={step.id} className="flex flex-col items-center relative z-10">
@@ -176,8 +180,8 @@ const OrderCard = ({ order, isExpanded, onToggle }: {
           {/* Order Items */}
           <div className="space-y-4">
             <h4 className="font-semibold">Sản phẩm đã đặt</h4>
-            {order.items.map((item, index) => (
-              <div key={index} className="flex items-center gap-4">
+            {order.items.map((item) => (
+              <div key={`${order.id}-${item.product.id}-${item.quantity}`} className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden flex-shrink-0">
                   <img 
                     src={item.product.image} 
@@ -277,6 +281,14 @@ const OrderCard = ({ order, isExpanded, onToggle }: {
                 </>
               )}
             </div>
+            <div className="flex gap-3 mt-4">
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/orders/${order.id}/status`}>Trang trạng thái</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to={`/orders/${order.id}/bill`}>Xem hóa đơn</Link>
+              </Button>
+            </div>
           </div>
         </CardContent>
       )}
@@ -290,16 +302,23 @@ const OrderTracking = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [orders, setOrders] = useState<Order[]>(sampleOrders);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Fetch orders from API
   useEffect(() => {
     const fetchOrders = async () => {
+      const localOrders = getStoredOrders();
+      if (localOrders.length > 0) {
+        setOrders(localOrders);
+        setExpandedOrderId(localOrders[0].id);
+      }
+
       if (!user?.id) {
-        setOrders(sampleOrders);
+        if (localOrders.length === 0) {
+          setOrders(sampleOrders);
+          setExpandedOrderId(sampleOrders[0]?.id || null);
+        }
         return;
       }
-      setIsLoading(true);
       try {
         const { orderService } = await import('@/services/OrderService');
         const apiOrders = await orderService.getMyOrders(user.id);
@@ -336,18 +355,21 @@ const OrderTracking = () => {
             deliveryDate: 'Đang xử lý',
             deliveryTime: 'N/A',
           }));
-          setOrders(mapped);
-          if (mapped.length > 0) setExpandedOrderId(mapped[0].id);
+          const merged = [...localOrders, ...mapped.filter((order) => !localOrders.some((localOrder) => localOrder.id === order.id))];
+          setOrders(merged);
+          if (merged.length > 0) setExpandedOrderId(merged[0].id);
         } else {
-          setOrders(sampleOrders);
-          if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+          if (localOrders.length === 0) {
+            setOrders(sampleOrders);
+            if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+          }
         }
       } catch (err) {
         console.warn('Failed to fetch orders from API', err);
-        setOrders(sampleOrders);
-        if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
-      } finally {
-        setIsLoading(false);
+        if (localOrders.length === 0) {
+          setOrders(sampleOrders);
+          if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+        }
       }
     };
     fetchOrders();
@@ -366,7 +388,7 @@ const OrderTracking = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header cartCount={0} onCartClick={() => {}} />
+      <Header />
       
       <main className="flex-1 py-8">
         <div className="container max-w-4xl">
@@ -412,7 +434,7 @@ const OrderTracking = () => {
                   }
                 </p>
                 <Button asChild>
-                  <Link to="/">Tiếp tục mua sắm</Link>
+                  <Link to="/products">Tiếp tục mua sắm</Link>
                 </Button>
               </Card>
             ) : (
@@ -433,24 +455,24 @@ const OrderTracking = () => {
           {filteredOrders.length > 0 && (
             <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{sampleOrders.length}</p>
+                <p className="text-2xl font-bold text-primary">{orders.length}</p>
                 <p className="text-sm text-muted-foreground">Tổng đơn hàng</p>
               </Card>
               <Card className="p-4 text-center">
                 <p className="text-2xl font-bold text-blue-600">
-                  {sampleOrders.filter(o => o.status === 'shipping').length}
+                  {orders.filter(o => o.status === 'shipping').length}
                 </p>
                 <p className="text-sm text-muted-foreground">Đang giao</p>
               </Card>
               <Card className="p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">
-                  {sampleOrders.filter(o => o.status === 'delivered').length}
+                  {orders.filter(o => o.status === 'delivered').length}
                 </p>
                 <p className="text-sm text-muted-foreground">Đã giao</p>
               </Card>
               <Card className="p-4 text-center">
                 <p className="text-2xl font-bold">
-                  {formatPrice(sampleOrders.reduce((sum, o) => sum + o.total, 0))}
+                  {formatPrice(orders.reduce((sum, o) => sum + o.total, 0))}
                 </p>
                 <p className="text-sm text-muted-foreground">Tổng chi tiêu</p>
               </Card>

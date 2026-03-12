@@ -35,13 +35,13 @@ const TechNews = () => {
   return (
     <section className="py-12 md:py-16 bg-secondary/50">
       <div className="container">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold">Bản tin công nghệ</h2>
-            <p className="text-muted-foreground mt-1">
-              Đánh giá chi tiết, so sánh & gợi ý sản phẩm
-            </p>
-          </div>
+        <div className="text-center mb-8">
+          <h2 className="text-2xl md:text-3xl font-bold">Bản tin công nghệ</h2>
+          <p className="text-muted-foreground mt-1">
+            Đánh giá chi tiết, so sánh & gợi ý sản phẩm
+          </p>
+        </div>
+        <div className="flex justify-end mb-4">
           <Button variant="outline" className="hidden md:flex gap-2">
             Xem tất cả
             <ArrowRight className="w-4 h-4" />

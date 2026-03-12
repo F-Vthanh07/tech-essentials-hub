@@ -18,6 +18,12 @@ import CustomCase from "./pages/CustomCase";
 import NotFound from "./pages/NotFound";
 import Cart from "./pages/Cart";
 import Auth from "./pages/Auth";
+import Products from "./pages/Products";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
+import OrderBill from "./pages/OrderBill";
+import OrderStatus from "./pages/OrderStatus";
+import BuyNowConfirm from "./pages/BuyNowConfirm";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
@@ -48,9 +54,15 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/payment/success" element={<PaymentSuccess />} />
+              <Route path="/payment/failed" element={<PaymentFailed />} />
+              <Route path="/order-detail/confirm" element={<BuyNowConfirm />} />
+              <Route path="/orders/:id/bill" element={<OrderBill />} />
+              <Route path="/orders/:id/status" element={<OrderStatus />} />
               
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route path="/admin" element={<ProtectedRoute requiredRole="Admin"><AdminLayout /></ProtectedRoute>}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
