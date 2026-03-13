@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Eye, Trash2, Loader2 } from "lucide-react";
-import { orderService, ApiOrder } from "@/services/OrderService";
+import { orderService } from "@/services/OrderService";
 import { sampleOrders } from "@/data/orders";
 import { Order } from "@/types/order";
 import { toast } from "@/hooks/use-toast";
@@ -38,13 +38,19 @@ const statusOptions = [
   { value: 'cancelled', label: 'Đã hủy' }
 ];
 
+const normalizeStatus = (status?: string): Order['status'] => {
+  const value = (status || 'pending').toLowerCase();
+  if (value === 'pending' || value === 'confirmed' || value === 'shipping' || value === 'delivered' || value === 'cancelled') {
+    return value;
+  }
+  return 'pending';
+};
+
 const AdminOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [apiOrders, setApiOrders] = useState<ApiOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [selectedApiOrder, setSelectedApiOrder] = useState<ApiOrder | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,14 +62,13 @@ const AdminOrders = () => {
     setIsLoading(true);
     try {
       const data = await orderService.getAll();
-      setApiOrders(data);
       // Map API orders to UI format
       const mapped: Order[] = data.map((o, index) => ({
         id: o.id,
         orderNumber: `ORD-${String(index + 1).padStart(3, '0')}`,
-        status: (o.status || 'pending') as Order['status'],
-        createdAt: o.createdAt || new Date().toISOString(),
-        items: (o.orderItems || []).map((item: any) => ({
+        status: normalizeStatus(o.status),
+        createdAt: o.createdAt || o.orderDate || new Date().toISOString(),
+        items: ((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).map((item: any) => ({
           product: {
             id: item.variantId || item.id,
             name: item.variantName || `Variant #${(item.variantId || '').slice(0, 8)}`,
@@ -73,7 +78,7 @@ const AdminOrders = () => {
           quantity: item.quantity || 1,
           price: item.price || 0,
         })),
-        total: o.totalAmount || (o.orderItems || []).reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0),
+        total: o.totalAmount || (((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0)),
         subtotal: o.totalAmount || 0,
         shippingFee: 0,
         discount: 0,
@@ -293,8 +298,8 @@ const AdminOrders = () => {
               <div>
                 <h4 className="font-medium text-muted-foreground mb-2">Sản phẩm</h4>
                 <div className="space-y-3">
-                  {selectedOrder.items.map((item, index) => (
-                    <div key={index} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                  {selectedOrder.items.map((item) => (
+                    <div key={`${selectedOrder.id}-${item.product.id}-${item.quantity}`} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
                       <img 
                         src={item.product.image} 
                         alt={item.product.name}

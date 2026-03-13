@@ -211,11 +211,6 @@ const Header = () => {
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium text-primary" onClick={() => navigate('/promotions')}>
-                Khuyến mãi Hot 🔥
-              </Button>
-            </li>
-            <li>
               <Button variant="ghost" className="font-medium" onClick={() => navigate('/brands')}>
                 Thương hiệu
               </Button>
@@ -264,11 +259,6 @@ const Header = () => {
               <li>
                 <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/products'); setIsMenuOpen(false); }}>
                   Tất cả sản phẩm
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" className="w-full justify-start font-medium text-primary" onClick={() => { navigate('/promotions'); setIsMenuOpen(false); }}>
-                  Khuyến mãi Hot 🔥
                 </Button>
               </li>
               <li>

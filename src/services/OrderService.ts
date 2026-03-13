@@ -16,8 +16,10 @@ export interface ApiOrder {
   id: string;
   accountId: string;
   orderItems: ApiOrderItem[];
+  items?: ApiOrderItem[];
   totalAmount?: number;
   status?: string;
+  orderDate?: string;
   createdAt?: string;
   updatedAt?: string;
 }

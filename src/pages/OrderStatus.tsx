@@ -1,4 +1,5 @@
-import { CheckCircle2, Clock, Package, Truck, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Clock, CreditCard, Package, Truck, XCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -9,6 +10,7 @@ import { getStoredOrderById } from "@/lib/orderStorage";
 import { getOrderStatusSteps } from "@/data/orders";
 import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
+import { ApiPayment, getLatestPaymentAttempt, paymentService } from "@/services/PaymentService";
 
 const statusConfig = {
   pending: { label: "Chờ xác nhận", variant: "secondary" as const, icon: Clock },
@@ -21,6 +23,32 @@ const statusConfig = {
 const OrderStatus = () => {
   const { id = "" } = useParams();
   const order = getStoredOrderById(id);
+  const [latestPayment, setLatestPayment] = useState<ApiPayment | null>(null);
+
+  const getStepIcon = (index: number) => {
+    if (index === 0) return Package;
+    if (index === 1) return CheckCircle2;
+    if (index === 2) return Truck;
+    return CheckCircle2;
+  };
+
+  useEffect(() => {
+    const fetchPaymentStatus = async () => {
+      if (!order) return;
+      const orderId = order.apiOrderId || order.id;
+      if (!orderId) return;
+      try {
+        const resp = await paymentService.getPaymentByOrder(orderId);
+        if (resp?.isSuccess && resp.data?.length > 0) {
+          setLatestPayment(getLatestPaymentAttempt(resp.data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch payment status", err);
+      }
+    };
+
+    fetchPaymentStatus();
+  }, [order]);
 
   if (!order) {
     return (
@@ -70,7 +98,7 @@ const OrderStatus = () => {
                   />
                 </div>
                 {steps.map((step, index) => {
-                  const Icon = index === 0 ? Package : index === 1 ? CheckCircle2 : index === 2 ? Truck : CheckCircle2;
+                  const Icon = getStepIcon(index);
                   return (
                     <div key={step.id} className="flex flex-col items-center relative z-10 text-center">
                       <div
@@ -90,6 +118,35 @@ const OrderStatus = () => {
             </div>
           </CardContent>
         </Card>
+
+        {latestPayment && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Trạng thái thanh toán
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-2 gap-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">Phương thức:</span>{" "}
+                <span className="font-medium">{latestPayment.paymentMethod || "N/A"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Trạng thái:</span>{" "}
+                <span className="font-medium">{latestPayment.status || "Pending"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Mã tham chiếu:</span>{" "}
+                <span className="font-medium">{latestPayment.transactionRef || "N/A"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Hết hạn:</span>{" "}
+                <span className="font-medium">{latestPayment.expiredAt ? new Date(latestPayment.expiredAt).toLocaleString("vi-VN") : "N/A"}</span>
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="p-6 flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
