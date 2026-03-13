@@ -28,6 +28,14 @@ import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
 import { getStoredOrders } from "@/lib/orderStorage";
 
+const normalizeStatus = (status?: string): Order['status'] => {
+  const value = (status || 'pending').toLowerCase();
+  if (value === 'pending' || value === 'confirmed' || value === 'shipping' || value === 'delivered' || value === 'cancelled') {
+    return value;
+  }
+  return 'pending';
+};
+
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -45,7 +53,7 @@ const formatDate = (dateString: string) => {
   });
 };
 
-const getStatusBadge = (status: Order['status']) => {
+const getStatusBadge = (status: Order['status'] | string) => {
   const statusConfig = {
     pending: { label: 'Chờ xác nhận', variant: 'secondary' as const, icon: Clock },
     confirmed: { label: 'Đã xác nhận', variant: 'default' as const, icon: CheckCircle2 },
@@ -54,7 +62,8 @@ const getStatusBadge = (status: Order['status']) => {
     cancelled: { label: 'Đã hủy', variant: 'destructive' as const, icon: XCircle },
   };
 
-  const config = statusConfig[status];
+  const normalizedStatus = normalizeStatus(status);
+  const config = statusConfig[normalizedStatus];
   const Icon = config.icon;
 
   return (
@@ -62,8 +71,8 @@ const getStatusBadge = (status: Order['status']) => {
       variant={config.variant} 
       className={cn(
         "gap-1",
-        status === 'delivered' && "bg-green-600 hover:bg-green-700",
-        status === 'shipping' && "bg-blue-600 hover:bg-blue-700"
+        normalizedStatus === 'delivered' && "bg-green-600 hover:bg-green-700",
+        normalizedStatus === 'shipping' && "bg-blue-600 hover:bg-blue-700"
       )}
     >
       <Icon className="w-3 h-3" />
@@ -72,8 +81,9 @@ const getStatusBadge = (status: Order['status']) => {
   );
 };
 
-const OrderStatusTimeline = ({ status }: { status: Order['status'] }) => {
-  const steps = getOrderStatusSteps(status);
+const OrderStatusTimeline = ({ status }: { status: Order['status'] | string }) => {
+  const normalizedStatus = normalizeStatus(status);
+  const steps = getOrderStatusSteps(normalizedStatus);
   const getStepIcon = (index: number) => {
     if (index === 0) return Package;
     if (index === 1) return CheckCircle2;
@@ -81,7 +91,7 @@ const OrderStatusTimeline = ({ status }: { status: Order['status'] }) => {
     return CheckCircle2;
   };
 
-  if (status === 'cancelled') {
+  if (normalizedStatus === 'cancelled') {
     return (
       <div className="flex items-center justify-center py-8 text-destructive">
         <XCircle className="w-8 h-8 mr-2" />
@@ -308,8 +318,12 @@ const OrderTracking = () => {
     const fetchOrders = async () => {
       const localOrders = getStoredOrders();
       if (localOrders.length > 0) {
-        setOrders(localOrders);
-        setExpandedOrderId(localOrders[0].id);
+        const normalizedLocalOrders = localOrders.map((order) => ({
+          ...order,
+          status: normalizeStatus((order as any).status),
+        }));
+        setOrders(normalizedLocalOrders);
+        setExpandedOrderId(normalizedLocalOrders[0].id);
       }
 
       if (!user?.id) {
@@ -321,22 +335,33 @@ const OrderTracking = () => {
       }
       try {
         const { orderService } = await import('@/services/OrderService');
-        const apiOrders = await orderService.getMyOrders(user.id);
+        let apiOrders: any[] = [];
+        try {
+          apiOrders = await orderService.getMyOrders(user.id);
+        } catch {
+          apiOrders = [];
+        }
+
+        // Fallback to get-all endpoint response shape when get-my is empty/unavailable
+        if (!apiOrders || apiOrders.length === 0) {
+          apiOrders = await orderService.getAll();
+        }
+
         if (apiOrders && apiOrders.length > 0) {
           // Map API orders to frontend Order format
           const mapped: Order[] = apiOrders.map((o: any, index: number) => ({
             id: o.id,
             orderNumber: `ORD-${String(index + 1).padStart(3, '0')}`,
-            status: o.status || 'pending',
-            createdAt: o.createdAt || new Date().toISOString(),
-            items: (o.orderItems || []).map((item: any) => ({
+            status: normalizeStatus(o.status),
+            createdAt: o.createdAt || o.orderDate || new Date().toISOString(),
+            items: ((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).map((item: any) => ({
               product: {
                 id: item.variantId,
                 name: item.variantName || `Sản phẩm #${item.variantId?.slice(0, 8)}`,
                 image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop',
                 price: item.price || 0,
               },
-              quantity: item.quantity,
+              quantity: item.quantity || 1,
               price: item.price || 0,
             })),
             total: o.totalAmount || 0,
@@ -376,13 +401,14 @@ const OrderTracking = () => {
   }, [user]);
 
   const filteredOrders = orders.filter(order => {
+    const normalizedStatus = normalizeStatus((order as any).status);
     const matchesSearch = order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           order.trackingNumber?.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === "all") return matchesSearch;
-    if (activeTab === "pending") return matchesSearch && (order.status === "pending" || order.status === "confirmed");
-    if (activeTab === "shipping") return matchesSearch && order.status === "shipping";
-    if (activeTab === "delivered") return matchesSearch && order.status === "delivered";
+    if (activeTab === "pending") return matchesSearch && (normalizedStatus === "pending" || normalizedStatus === "confirmed");
+    if (activeTab === "shipping") return matchesSearch && normalizedStatus === "shipping";
+    if (activeTab === "delivered") return matchesSearch && normalizedStatus === "delivered";
     return matchesSearch;
   });
 
