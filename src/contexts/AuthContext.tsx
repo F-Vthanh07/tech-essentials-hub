@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { User } from "@/types/user";
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   role: string | null;
+  isAuthReady: boolean;
   /**
    * Update the current authenticated user and optionally save a token.
    * Passing `null` for user will clear the authentication state.
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   // hydrate from localStorage on mount
   useEffect(() => {
@@ -46,6 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedToken) {
       setToken(storedToken);
     }
+    setIsAuthReady(true);
   }, []);
 
   const setAuth = (userData: User | null, authToken: string | null = null) => {
@@ -72,8 +75,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setAuth(null, null);
   };
 
+  const authContextValue = useMemo(
+    () => ({ user, token, role, isAuthReady, setAuth, logout }),
+    [user, token, role, isAuthReady]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, role, setAuth, logout }}>
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );
