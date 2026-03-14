@@ -22,7 +22,7 @@ const Auth = () => {
   // redirect to home if already authenticated
   useEffect(() => {
     if (currentUser) {
-      navigate("/");
+      navigate(currentUser.role === "Admin" ? "/admin" : "/", { replace: true });
     }
   }, [currentUser, navigate]);
 
@@ -184,15 +184,15 @@ const Auth = () => {
               </TabsContent>
 
               <TabsContent value="register" className="space-y-4">
-                {!otpEmail ? (
-                  <RegisterForm onRegister={handleRegister} isLoading={isLoading} />
-                ) : (
+                {otpEmail ? (
                   <OtpVerifyForm
                     email={otpEmail}
                     onVerify={handleVerifyOtp}
                     onResend={handleResendOtp}
                     isVerifying={isVerifyingOtp}
                   />
+                ) : (
+                  <RegisterForm onRegister={handleRegister} isLoading={isLoading} />
                 )}
               </TabsContent>
             </Tabs>
