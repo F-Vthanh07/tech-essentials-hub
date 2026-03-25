@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
  import { Palette, Smartphone, ShoppingCart, Sparkles, RotateCcw, PenTool } from "lucide-react";
  import CaseDesignEditor from "@/components/CaseDesignEditor";
 import { deviceService } from "@/services/DeviceService";
+import { customProductApi } from "@/services/CustomeProductService";
 import { ApiDevice } from "@/types/product";
 import { toast } from "sonner";
 
@@ -225,28 +226,30 @@ const NotchModule = ({ style }: { style: string }) => {
     const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
     const [isDeviceLoading, setIsDeviceLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [designElements, setDesignElements] = useState<DesignElement[]>([]);
+  const [isSavingCustomCase, setIsSavingCustomCase] = useState(false);
 
-    const availableDevices = apiDevices.length > 0
-      ? apiDevices.map((device) => device.name)
-      : defaultAvailableDevices;
-
-    useEffect(() => {
-      const fetchDevices = async () => {
-        setIsDeviceLoading(true);
-        try {
-          const devices = await deviceService.getAll();
-          if (devices.length > 0) {
-            setApiDevices(devices);
-          }
-        } catch (error) {
-          console.warn("Failed to fetch devices for custom case page", error);
-        } finally {
-          setIsDeviceLoading(false);
+  useEffect(() => {
+    const fetchDevices = async () => {
+      setIsDeviceLoading(true);
+      try {
+        const devices = await deviceService.getAll();
+        if (devices.length > 0) {
+          setApiDevices(devices);
         }
-      };
+      } catch (error) {
+        console.warn("Failed to fetch devices for custom case page", error);
+      } finally {
+        setIsDeviceLoading(false);
+      }
+    };
 
-      fetchDevices();
-    }, []);
+    fetchDevices();
+  }, []);
+
+  const availableDevices = apiDevices.length > 0
+    ? apiDevices.map((device) => device.name)
+    : defaultAvailableDevices;
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
   
@@ -268,9 +271,9 @@ const NotchModule = ({ style }: { style: string }) => {
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
   const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
 
-  const handleDesignChange = useCallback((_elements: DesignElement[]) => {
-    // Keeps callback stable for editor updates; custom design payload can be wired to cart later.
-   }, []);
+  const handleDesignChange = useCallback((elements: DesignElement[]) => {
+    setDesignElements(elements);
+  }, []);
 
   const handleReset = () => {
     setSelectedDevice("");
@@ -280,23 +283,80 @@ const NotchModule = ({ style }: { style: string }) => {
     toast.info("Đã reset thiết kế");
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedDevice) {
       toast.error("Vui lòng chọn thiết bị");
       return;
     }
-    toast.success(`Đã thêm ốp lưng custom vào giỏ hàng!`, {
-      description: `${selectedDevice} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`
-    });
+
+    const device = apiDevices.find((d) => d.name === selectedDevice);
+    const productVariantId = device?.id ?? selectedDevice;
+
+    const configurationData = {
+      color: selectedColor,
+      material: selectedMaterial,
+      quantity,
+      designElements,
+      selectedDevice,
+      totalPrice,
+    };
+
+    const payload = {
+      productVariantId,
+      configurationJson: JSON.stringify(configurationData),
+      previewUrl: "", // TODO: thay bằng URL preview thực tế nếu có
+    };
+
+    try {
+      setIsSavingCustomCase(true);
+      await customProductApi.createCustomCase(payload);
+      toast.success("Đã lưu thiết kế custom và thêm vào giỏ hàng", {
+        description: `${selectedDevice} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`,
+      });
+    } catch (error) {
+      console.error("Failed to save custom case", error);
+      toast.error("Không thể lưu thiết kế. Vui lòng thử lại.");
+      return;
+    } finally {
+      setIsSavingCustomCase(false);
+    }
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!selectedDevice) {
       toast.error("Vui lòng chọn thiết bị");
       return;
     }
-    toast.success("Đang chuyển đến trang thanh toán...");
-    navigate("/checkout");
+
+    const device = apiDevices.find((d) => d.name === selectedDevice);
+    const productVariantId = device?.id ?? selectedDevice;
+
+    const configurationData = {
+      color: selectedColor,
+      material: selectedMaterial,
+      quantity,
+      designElements,
+      selectedDevice,
+      totalPrice,
+    };
+
+    const payload = {
+      productVariantId,
+      configurationJson: JSON.stringify(configurationData),
+      previewUrl: "", // TODO: lưu URL preview thực tế nếu có
+    };
+
+    try {
+      setIsSavingCustomCase(true);
+      await customProductApi.createCustomCase(payload);
+      toast.success("Đã lưu thiết kế custom và chuẩn bị thanh toán...");
+      navigate("/checkout");
+    } catch (error) {
+      console.error("Failed to save custom case", error);
+      toast.error("Không thể lưu thiết kế. Vui lòng thử lại.");
+    } finally {
+      setIsSavingCustomCase(false);
+    }
   };
 
   return (
