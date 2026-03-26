@@ -8,6 +8,15 @@ import {
   ApiProductAttribute,
 } from '@/types/product';
 
+export interface UpdateProductPayload {
+  name: string;
+  description: string;
+  price: number;
+  isActive: boolean;
+  brandId: string;
+  categoryId: string;
+}
+
 // === API calls ===
 
 export const productApi = {
@@ -15,7 +24,7 @@ export const productApi = {
   getById: (id: string) => httpClient.get<ApiProduct>(`/api/product/get-by-id/${id}`),
   create: (data: Omit<ApiProduct, 'id' | 'brandName' | 'categoryName'>) =>
     httpClient.post<ApiProduct>('/api/product/create', data),
-  update: (id: string, data: Partial<ApiProduct>) =>
+  update: (id: string, data: UpdateProductPayload) =>
     httpClient.put<ApiProduct>(`/api/product/update/${id}`, data),
   delete: (id: string) => httpClient.del<any>(`/api/product/delete/${id}`),
 };
@@ -106,10 +115,12 @@ export const productService = {
   /**
    * Fetch all products — variants & compatibilities are embedded in the response.
    */
-  async getAllProducts(): Promise<Product[]> {
+  async getAllProducts(options?: { includeInactive?: boolean }): Promise<Product[]> {
     const apiProducts = await productApi.getAll();
+    const includeInactive = options?.includeInactive ?? false;
+
     return apiProducts
-      .filter((p) => p.isActive)
+      .filter((p) => includeInactive || p.isActive)
       .map(mapApiToProduct);
   },
 

@@ -3,13 +3,13 @@ import { brandService, Brand } from "@/services/BrandService";
 import { categoryService } from "@/services/CategoryService";
 import { deviceService } from "@/services/DeviceService";
 import { attributeService } from "@/services/AttributeService";
-import { productApi, variantApi, productService, compatibilityApi, productAttributeApi } from "@/services/ProductService";
+import { productApi, variantApi, productService, compatibilityApi, productAttributeApi, type UpdateProductPayload } from "@/services/ProductService";
 import {
   ApiCategory, ApiDevice, ApiAttribute, ApiProduct,
   ApiProductVariant, ApiProductCompatibility, ApiProductAttribute,
-  Product, ColorVariant,
+  Product,
 } from "@/types/product";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Plus, Pencil, Trash2, Search, Loader2, X, Palette, Eye, Check, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -301,6 +302,7 @@ function ProductsTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [togglingProductId, setTogglingProductId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "", description: "", price: 0, image: "", brandId: "", categoryId: "", isActive: true,
   });
@@ -326,7 +328,7 @@ function ProductsTab({
 
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
-    try { setProducts(await productService.getAllProducts()); }
+    try { setProducts(await productService.getAllProducts({ includeInactive: true })); }
     catch { toast({ title: "Lỗi", description: "Không thể tải sản phẩm", variant: "destructive" }); }
     finally { setIsLoading(false); }
   }, []);
@@ -411,14 +413,37 @@ function ProductsTab({
       toast({ title: "Lỗi", description: "Điền đầy đủ thông tin bắt buộc", variant: "destructive" });
       return;
     }
+
+    const hasConfiguredVariant = colorVariants.some((v) => {
+      if (!String(v.id || '').startsWith('temp_')) return true;
+      return String(v.name || '').trim().length > 0;
+    });
+
+    if (formData.isActive && !hasConfiguredVariant) {
+      toast({
+        title: "Không thể bật sản phẩm",
+        description: "Sản phẩm cần có ít nhất 1 biến thể trước khi đặt trạng thái Đang bán.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const brand = brands.find(b => b.id === formData.brandId);
       const cat = categories.find(c => c.id === formData.categoryId);
       const payload = { ...formData, brandName: brand?.name || '', categoryName: cat?.name || '' };
+      const updatePayload: UpdateProductPayload = {
+        name: formData.name.trim(),
+        description: formData.description?.trim() || "",
+        price: Number(formData.price),
+        isActive: !!formData.isActive,
+        brandId: formData.brandId,
+        categoryId: formData.categoryId,
+      };
 
       if (editingProduct) {
-        await productApi.update(editingProduct.id, { id: editingProduct.id, ...payload } as any);
+        await productApi.update(editingProduct.id, updatePayload);
         for (const cv of colorVariants.filter(v => v.id.startsWith('temp_'))) {
           await variantApi.create({
             productId: editingProduct.id, sku: `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
@@ -457,6 +482,43 @@ function ProductsTab({
       console.error(err);
       toast({ title: "Lỗi", description: "Không thể lưu sản phẩm", variant: "destructive" });
     } finally { setIsSaving(false); }
+  };
+
+  const handleToggleProductActive = async (product: Product) => {
+    setTogglingProductId(product.id);
+    try {
+      const apiProduct = await productApi.getById(product.id);
+      const nextIsActive = !apiProduct.isActive;
+
+      if (nextIsActive && (!apiProduct.variants || apiProduct.variants.length === 0)) {
+        toast({
+          title: "Không thể bật sản phẩm",
+          description: "Sản phẩm chưa có biến thể. Hãy thêm biến thể trước khi bật.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await productApi.update(product.id, {
+        name: apiProduct.name,
+        description: apiProduct.description || "",
+        price: apiProduct.price,
+        isActive: nextIsActive,
+        brandId: apiProduct.brandId,
+        categoryId: apiProduct.categoryId,
+      });
+
+      toast({
+        title: "Thành công",
+        description: nextIsActive ? "Đã bật sản phẩm" : "Đã tắt sản phẩm",
+      });
+      await fetchProducts();
+    } catch (err) {
+      console.error('Toggle product status failed:', err);
+      toast({ title: "Lỗi", description: "Không thể cập nhật trạng thái sản phẩm", variant: "destructive" });
+    } finally {
+      setTogglingProductId(null);
+    }
   };
 
   const handleUpdateVariant = async (v: any) => {
@@ -544,7 +606,11 @@ function ProductsTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(p => (
+              {filtered.map(p => {
+                const isProductActive = p.isActive ?? true;
+                const isToggling = togglingProductId === p.id;
+
+                return (
                 <TableRow key={p.id}>
                   <TableCell>
                     <img src={p.image} alt="" className="w-10 h-10 rounded object-cover"
@@ -565,9 +631,23 @@ function ProductsTab({
                     ) : '-'}
                   </TableCell>
                   <TableCell>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${p.isActive !== false ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                      {p.isActive !== false ? 'Bật' : 'Tắt'}
-                    </span>
+                    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card/70 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${isProductActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        <span className={`text-xs font-medium ${isProductActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                          {isProductActive ? 'Đang bán' : 'Đã ẩn'}
+                        </span>
+                      </div>
+                      {isToggling ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <Switch
+                          checked={isProductActive}
+                          onCheckedChange={() => handleToggleProductActive(p)}
+                          aria-label={isProductActive ? "Tắt sản phẩm" : "Bật sản phẩm"}
+                        />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -583,7 +663,8 @@ function ProductsTab({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
               {filtered.length === 0 && (
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Không có sản phẩm</TableCell></TableRow>
               )}
@@ -636,10 +717,36 @@ function ProductsTab({
                 </Select>
               </div>
             </div>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={formData.isActive} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} className="rounded" />
-              <span className="text-sm">Đang bán</span>
-            </label>
+            <div className="rounded-xl border bg-card/70 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Trạng thái bán</p>
+                  <p className="text-xs text-muted-foreground">
+                    Chỉ có thể bật khi sản phẩm có ít nhất 1 biến thể.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold ${formData.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                    {formData.isActive ? 'Đang bán' : 'Đã ẩn'}
+                  </span>
+                  <Switch
+                    checked={formData.isActive}
+                    onCheckedChange={(checked) => {
+                      if (checked && colorVariants.length === 0) {
+                        toast({
+                          title: "Không thể bật sản phẩm",
+                          description: "Thêm ít nhất 1 biến thể trước khi chuyển sang Đang bán.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setFormData({ ...formData, isActive: checked });
+                    }}
+                    aria-label="Chuyển trạng thái sản phẩm"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Variants */}
             <div className="border-t pt-4">
