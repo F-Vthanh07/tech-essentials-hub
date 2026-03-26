@@ -60,6 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setRole(null);
       localStorage.removeItem("currentUser");
+      localStorage.removeItem("cartId");
     }
 
     if (authToken) {

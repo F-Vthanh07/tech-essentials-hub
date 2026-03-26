@@ -19,7 +19,7 @@ import { ApiCategory } from "@/types/product";
 import { toast } from "sonner";
 
 const Header = () => {
-  const { getCartCount } = useCart();
+  const { getCartCount, loadCartFromBackend } = useCart();
   const cartCount = getCartCount();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,6 +82,17 @@ const Header = () => {
     }
   };
 
+  const handleOpenCart = async () => {
+    if (user) {
+      try {
+        await loadCartFromBackend();
+      } catch (err) {
+        console.warn("Failed to load cart before navigating", err);
+      }
+    }
+    navigate('/cart');
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
       {/* Top bar */}
@@ -135,7 +146,7 @@ const Header = () => {
               <Search className="w-5 h-5" />
             </Button>
             
-            <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/cart')}>
+            <Button variant="ghost" size="icon" className="relative" onClick={handleOpenCart}>
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
                 <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-primary">

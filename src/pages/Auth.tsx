@@ -8,14 +8,17 @@ import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { User } from "@/types/user";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
 import LoginForm from "@/components/auth/LoginForm";
 import RegisterForm from "@/components/auth/RegisterForm";
 import OtpVerifyForm from "@/components/auth/OtpVerifyForm";
+import { cartService } from "@/services/CartService";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const { user: currentUser, setAuth } = useAuth();
+  const { loadCartFromBackend } = useCart();
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
@@ -50,6 +53,9 @@ const Auth = () => {
       const token: string | null = resp.token ?? null;
 
       setAuth(userData, token);
+
+      await createAndLoadCart();
+
       toast.success("Đăng nhập thành công!");
       navigate(resp.role === 'Admin' ? '/admin' : '/');
     } catch (err) {
@@ -83,6 +89,9 @@ const Auth = () => {
       if (userData) {
         if (resp.token) localStorage.setItem('authToken', resp.token);
         setAuth(userData, resp.token ?? null);
+
+        await createAndLoadCart();
+
         toast.success("Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉");
         navigate("/");
       } else {
@@ -125,6 +134,9 @@ const Auth = () => {
         const normalized = normalizeUser(userData);
         if (normalized) {
           setAuth(normalized, resp.token ?? null);
+
+          await createAndLoadCart();
+
           toast.success('Xác thực thành công, bạn đã đăng nhập.');
           navigate('/');
         } else {
@@ -151,6 +163,25 @@ const Auth = () => {
     } catch (err) {
       console.warn('resendOtp error', err);
       toast.error('Không gửi được mã OTP.');
+    }
+  };
+
+  /**
+   * Helper to create and load cart after successful auth
+   */
+  const createAndLoadCart = async () => {
+    try {
+      const createdCart = await cartService.createCart();
+      if (createdCart?.id) {
+        localStorage.setItem("cartId", createdCart.id);
+        try {
+          await loadCartFromBackend();
+        } catch (loadErr) {
+          console.warn("load cart items after cart creation failed", loadErr);
+        }
+      }
+    } catch (cartErr) {
+      console.warn("create cart after auth failed", cartErr);
     }
   };
 
@@ -202,5 +233,24 @@ const Auth = () => {
     </div>
   );
 };
+
+/**
+ * Helper function to normalize user data from API response
+ */
+function normalizeUser(data: any): User | null {
+  if (!data || typeof data !== 'object') return null;
+  
+  return {
+    id: data.id || `temp_${Date.now()}`,
+    email: data.email || '',
+    name: data.name || data.email?.split('@')[0] || 'User',
+    role: data.role,
+    points: data.points ?? 0,
+    membershipLevel: data.membershipLevel ?? 'bronze',
+    totalSpent: data.totalSpent ?? 0,
+    createdAt: data.createdAt ?? new Date().toISOString(),
+    phone: data.phone,
+  };
+}
 
 export default Auth;

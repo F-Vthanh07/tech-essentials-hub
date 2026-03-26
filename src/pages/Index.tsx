@@ -1,3 +1,4 @@
+import { cartService } from "@/services/CartService";
 import Header from "@/components/Header";
 import HeroBanner from "@/components/HeroBanner";
 import BrandShowcase from "@/components/BrandShowcase";
@@ -15,9 +16,26 @@ import { ArrowRight } from "lucide-react";
 const Index = () => {
   const { addToCart } = useCart();
 
-  const handleAddToCart = (product: Product) => {
-    addToCart(product);
-    toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+  const handleAddToCart = async (product: Product) => {
+    const productVariantId = product.variantId || product.colorVariants?.[0]?.id;
+
+    if (!productVariantId) {
+      toast.error("Sản phẩm chưa có biến thể để thêm vào giỏ");
+      return;
+    }
+
+    try {
+      await cartService.createCartItem({
+        productVariantId,
+        quantity: 1,
+      });
+
+      addToCart(product);
+      toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+    } catch (err) {
+      console.warn("add to cart failed", err);
+      toast.error("Không thể thêm vào giỏ hàng");
+    }
   };
 
   return (

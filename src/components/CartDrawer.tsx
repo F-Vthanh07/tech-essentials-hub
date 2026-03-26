@@ -2,6 +2,7 @@ import { Minus, Plus, X, Trash2, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -11,9 +12,12 @@ import {
 import { Product } from "@/types/product";
 import { discountCodes } from "@/data/products";
 import { useState } from "react";
+import { toast } from "sonner";
 
 interface CartItem extends Product {
   quantity: number;
+  selectedColor?: Product["colorVariants"] extends Array<infer T> ? T : undefined;
+  variantId?: string;
 }
 
 interface CartDrawerProps {
@@ -22,6 +26,11 @@ interface CartDrawerProps {
   items: CartItem[];
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemoveItem: (id: string) => void;
+  selectedItemIds?: Set<string>;
+  onSelectItem?: (itemId: string) => void;
+  onUnselectItem?: (itemId: string) => void;
+  onSelectAllItems?: () => void;
+  onUnselectAllItems?: () => void;
 }
 
 const CartDrawer = ({
@@ -30,6 +39,11 @@ const CartDrawer = ({
   items,
   onUpdateQuantity,
   onRemoveItem,
+  selectedItemIds = new Set(),
+  onSelectItem = () => {},
+  onUnselectItem = () => {},
+  onSelectAllItems = () => {},
+  onUnselectAllItems = () => {},
 }: CartDrawerProps) => {
   const navigate = useNavigate();
   const [promoCode, setPromoCode] = useState("");
@@ -37,11 +51,16 @@ const CartDrawer = ({
   const [promoError, setPromoError] = useState("");
 
   const handleCheckout = () => {
+    if (selectedItemIds.size === 0) {
+      toast.error("Vui lòng chọn ít nhất một sản phẩm để tiếp tục");
+      return;
+    }
+    const selectedItems = items.filter((item) => selectedItemIds.has(item.id));
     onClose();
-    navigate("/checkout", {
+    navigate("/order-detail/confirm", {
       state: {
-        cartItems: items,
-        discount: appliedDiscount?.discount || 0,
+        items: selectedItems,
+        fromCart: true,
       },
     });
   };
@@ -53,7 +72,9 @@ const CartDrawer = ({
     }).format(price);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = items
+    .filter((item) => selectedItemIds.has(item.id))
+    .reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const appliedDiscount = discountCodes.find(
     (code) => code.code === appliedCode && subtotal >= code.minOrder
@@ -114,24 +135,61 @@ const CartDrawer = ({
           </div>
         ) : (
           <>
+            {/* Cart selection toolbar */}
+            <div className="py-2 px-3 border-b border-border bg-secondary/50 rounded flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedItemIds.size === items.length && items.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      onSelectAllItems();
+                    } else {
+                      onUnselectAllItems();
+                    }
+                  }}
+                />
+                <span className="font-medium">
+                  {selectedItemIds.size === items.length && items.length > 0
+                    ? `Bỏ chọn tất cả`
+                    : `Chọn tất cả`}
+                </span>
+              </div>
+              <span className="text-muted-foreground">
+                Đã chọn: {selectedItemIds.size}/{items.length}
+              </span>
+            </div>
             {/* Cart items */}
             <div className="flex-1 overflow-y-auto py-4 -mx-6 px-6">
               <div className="space-y-4">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex gap-4 p-3 bg-secondary/50 rounded-lg"
+                    className={`flex gap-3 p-3 rounded-lg items-center ${
+                      selectedItemIds.has(item.id)
+                        ? "bg-primary/10 border border-primary"
+                        : "bg-secondary/50"
+                    }`}
                   >
+                    <Checkbox
+                      checked={selectedItemIds.has(item.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          onSelectItem(item.id);
+                        } else {
+                          onUnselectItem(item.id);
+                        }
+                      }}
+                    />
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-20 h-20 object-cover rounded-lg"
+                      className="w-16 h-16 object-cover rounded-lg"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm line-clamp-2 mb-1">
                         {item.name}
                       </p>
-                      <p className="text-primary font-semibold">
+                      <p className="text-primary font-semibold text-sm">
                         {formatPrice(item.price)}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
@@ -140,25 +198,25 @@ const CartDrawer = ({
                             onClick={() =>
                               onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))
                             }
-                            className="p-1.5 hover:bg-secondary transition-colors"
+                            className="p-1 hover:bg-secondary transition-colors"
                           >
-                            <Minus className="w-4 h-4" />
+                            <Minus className="w-3 h-3" />
                           </button>
-                          <span className="w-8 text-center text-sm font-medium">
+                          <span className="w-6 text-center text-xs font-medium">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                            className="p-1.5 hover:bg-secondary transition-colors"
+                            className="p-1 hover:bg-secondary transition-colors"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-3 h-3" />
                           </button>
                         </div>
                         <button
                           onClick={() => onRemoveItem(item.id)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                          className="p-1 text-muted-foreground hover:text-destructive transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -227,8 +285,14 @@ const CartDrawer = ({
 
             {/* Checkout */}
             <div className="pt-4 space-y-2">
-              <Button variant="brand" size="lg" className="w-full" onClick={handleCheckout}>
-                Thanh toán
+              <Button
+                variant="brand"
+                size="lg"
+                className="w-full"
+                onClick={handleCheckout}
+                disabled={selectedItemIds.size === 0}
+              >
+                Thanh toán ({selectedItemIds.size} sản phẩm)
               </Button>
               <Button variant="outline" className="w-full" onClick={onClose}>
                 Tiếp tục mua sắm
