@@ -1,15 +1,18 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Package, 
   ShoppingCart, 
   BarChart3,
   ChevronLeft,
-  Menu
+  Menu,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const menuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
@@ -20,6 +23,14 @@ const menuItems = [
 
 const AdminSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+    toast.success("Đã đăng xuất");
+  };
 
   return (
     <aside className={cn(
@@ -61,10 +72,24 @@ const AdminSidebar = () => {
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
+        <Button
+          variant="ghost"
+          onClick={handleLogout}
+          className={cn(
+            "w-full justify-start gap-3 px-3 py-2 text-destructive hover:text-destructive",
+            collapsed && "justify-center px-0"
+          )}
+        >
+          <LogOut className="h-5 w-5" />
+          {!collapsed && <span>Đăng xuất</span>}
+        </Button>
         <NavLink 
           to="/" 
-          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors",
+            collapsed && "justify-center px-0"
+          )}
         >
           <ChevronLeft className="h-5 w-5" />
           {!collapsed && <span>Về trang chủ</span>}

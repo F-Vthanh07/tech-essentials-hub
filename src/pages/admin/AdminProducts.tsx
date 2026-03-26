@@ -1259,23 +1259,17 @@ const AdminProducts = () => {
                 searchField="name"
                 columns={[
                   { key: 'name', label: 'Tên' },
-                  { key: 'dataType', label: 'Kiểu dữ liệu' },
+                  { key: 'dataType', label: 'Đơn vị' },
                 ]}
                 fields={[
                   { key: 'name', label: 'Tên thuộc tính', type: 'text', required: true },
-                  {
-                    key: 'dataType', label: 'Kiểu dữ liệu', type: 'select', required: true, options: [
-                      { value: 'String', label: 'String' },
-                      { value: 'Number', label: 'Number' },
-                      { value: 'Boolean', label: 'Boolean' },
-                    ]
-                  },
+                  { key: 'dataType', label: 'Đơn vị', type: 'text', required: true, placeholder: 'VD: inch, mm, mAh, gram...' },
                 ]}
                 fetchAll={() => attributeService.getAll()}
                 onCreate={(data) => attributeService.create(data)}
                 onUpdate={(id, data) => attributeService.update(id, data)}
                 onDelete={(id) => attributeService.delete(id)}
-                getFormDefaults={() => ({ name: '', dataType: 'String' })}
+                getFormDefaults={() => ({ name: '', dataType: '' })}
               />
             </CardContent>
           </Card>
