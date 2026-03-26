@@ -84,6 +84,7 @@ const Profile: React.FC = () => {
   // Helper function to logout
   const logout = () => {
     authLogout();
+    navigate('/');
   };
 
   // Helper function to get points history
@@ -119,7 +120,6 @@ const Profile: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
     toast.success('Đã đăng xuất');
   };
 
