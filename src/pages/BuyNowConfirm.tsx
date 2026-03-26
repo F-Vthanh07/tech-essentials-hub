@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
 import { Product, ColorVariant } from "@/types/product";
 import { Order } from "@/types/order";
 import { generateOrderNumber, prependStoredOrder, updateStoredOrder } from "@/lib/orderStorage";
@@ -22,6 +23,7 @@ interface BuyNowItem extends Product {
 
 interface BuyNowState {
   items?: BuyNowItem[];
+  fromCart?: boolean;
 }
 
 const formatPrice = (price: number) =>
@@ -41,10 +43,12 @@ const BuyNowConfirm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { clearCart } = useCart();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const state = (location.state || {}) as BuyNowState;
   const items = state.items || [];
+  const fromCart = Boolean(state.fromCart);
 
   const total = useMemo(
     () =>
@@ -143,6 +147,10 @@ const BuyNowConfirm = () => {
         paymentUrl,
         paymentStatus: "pending",
       });
+
+      if (fromCart) {
+        clearCart();
+      }
 
       toast.success("Tạo đơn thành công, đang chuyển đến cổng thanh toán...");
       globalThis.location.href = paymentUrl;

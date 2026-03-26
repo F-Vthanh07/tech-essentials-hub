@@ -1,21 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Minus, Plus, X, Trash2, Tag, ArrowLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { discountCodes } from "@/data/products";
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { items, updateQuantity, removeFromCart } = useCart();
+  const { user } = useAuth();
+  const { items, isLoading, updateQuantity, removeFromCart, loadCartFromBackend, selectedItemIds, selectItem, unselectItem, selectAllItems, unselectAllItems, getSelectedItems } = useCart();
   
   const [promoCode, setPromoCode] = useState("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState("");
+
+  // Load cart from backend when user is authenticated and component mounts
+  useEffect(() => {
+    if (user) {
+      loadCartFromBackend().catch(err => console.warn("Failed to load cart", err));
+    }
+  }, [user, loadCartFromBackend]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -38,7 +48,7 @@ const Cart = () => {
     return price * (1 - discount / 100);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + getItemFinalPrice(item) * item.quantity, 0);
+  const subtotal = getSelectedItems().reduce((sum, item) => sum + getItemFinalPrice(item) * item.quantity, 0);
 
   const appliedDiscount = discountCodes.find(
     (code) => code.code === appliedCode && subtotal >= code.minOrder
@@ -66,46 +76,98 @@ const Cart = () => {
   };
 
   const handleCheckout = () => {
-    navigate("/checkout", {
+    const selectedItems = getSelectedItems();
+    if (selectedItems.length === 0) {
+      const { toast } = require("sonner");
+      toast.error("Vui lòng chọn ít nhất một sản phẩm để tiếp tục");
+      return;
+    }
+    navigate("/order-detail/confirm", {
       state: {
-        discount: appliedDiscount?.discount || 0,
+        items: selectedItems.map((item) => ({
+          ...item.product,
+          quantity: item.quantity,
+          selectedColor: item.selectedColor,
+          variantId: item.variantId,
+        })),
+        fromCart: true,
       },
     });
   };
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header />
+  const renderCartContent = () => {
+    if (isLoading) {
+      return (
+        <Card className="text-center py-16">
+          <CardContent>
+            <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+              <div className="animate-spin w-12 h-12 border-4 border-primary border-transparent border-t-primary rounded-full" />
+            </div>
+            <p className="text-lg font-medium">Đang tải giỏ hàng...</p>
+          </CardContent>
+        </Card>
+      );
+    }
 
-      <main className="flex-1 container py-8">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl font-bold">Giỏ hàng ({items.length} sản phẩm)</h1>
-        </div>
+    if (items.length === 0) {
+      return (
+        <Card className="text-center py-16">
+          <CardContent>
+            <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-12 h-12 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-medium mb-2">Giỏ hàng trống</p>
+            <p className="text-muted-foreground mb-6">
+              Hãy thêm sản phẩm vào giỏ hàng
+            </p>
+            <Button onClick={() => navigate("/")}>Tiếp tục mua sắm</Button>
+          </CardContent>
+        </Card>
+      );
+    }
 
-        {items.length === 0 ? (
-          <Card className="text-center py-16">
-            <CardContent>
-              <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
-                <ShoppingBag className="w-12 h-12 text-muted-foreground" />
-              </div>
-              <p className="text-lg font-medium mb-2">Giỏ hàng trống</p>
-              <p className="text-muted-foreground mb-6">
-                Hãy thêm sản phẩm vào giỏ hàng
-              </p>
-              <Button onClick={() => navigate("/")}>Tiếp tục mua sắm</Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Cart items */}
+    return (
+      <div className="grid lg:grid-cols-3 gap-6">
+            {/* Cart items with selection */}
             <div className="lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedItemIds.size === items.length && items.length > 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        selectAllItems();
+                      } else {
+                        unselectAllItems();
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    {selectedItemIds.size === items.length && items.length > 0
+                      ? `Bỏ chọn tất cả (${items.length})`
+                      : `Chọn tất cả (${items.length})`}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  Đã chọn: {selectedItemIds.size}/{items.length}
+                </span>
+              </div>
               {items.map((item) => (
-                <Card key={item.id}>
+                <Card key={item.id} className={selectedItemIds.has(item.id) ? "border-primary" : ""}>
                   <CardContent className="p-4">
                     <div className="flex gap-4">
+                      <div className="flex items-center">
+                        <Checkbox
+                          checked={selectedItemIds.has(item.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              selectItem(item.id);
+                            } else {
+                              unselectItem(item.id);
+                            }
+                          }}
+                        />
+                      </div>
                       <img
                         src={item.selectedColor?.image || item.product.image}
                         alt={item.product.name}
@@ -127,13 +189,20 @@ const Cart = () => {
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <p className="text-primary font-semibold">
-                            {formatPrice(getItemFinalPrice(item))}
+                            {getItemPrice(item) * item.quantity === getItemFinalPrice(item) * item.quantity
+                              ? formatPrice(getItemFinalPrice(item) * item.quantity)
+                              : (
+                                <>
+                                  <span className="text-primary font-semibold">{formatPrice(getItemFinalPrice(item) * item.quantity)}</span>
+                                  {getItemDiscount(item) > 0 && (
+                                    <span className="text-sm text-muted-foreground line-through ml-2">
+                                      {formatPrice(getItemPrice(item) * item.quantity)}
+                                    </span>
+                                  )}
+                                </>
+                              )
+                            }
                           </p>
-                          {getItemDiscount(item) > 0 && (
-                            <span className="text-sm text-muted-foreground line-through">
-                              {formatPrice(getItemPrice(item))}
-                            </span>
-                          )}
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -234,8 +303,8 @@ const Cart = () => {
                     </div>
                   </div>
 
-                  <Button variant="brand" size="lg" className="w-full" onClick={handleCheckout}>
-                    Tiến hành thanh toán
+                  <Button variant="brand" size="lg" className="w-full" onClick={handleCheckout} disabled={selectedItemIds.size === 0}>
+                    Tiến hành thanh toán ({selectedItemIds.size} sản phẩm)
                   </Button>
                   <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
                     Tiếp tục mua sắm
@@ -244,7 +313,22 @@ const Cart = () => {
               </Card>
             </div>
           </div>
-        )}
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <Header />
+
+      <main className="flex-1 container py-8">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Giỏ hàng ({items.length} sản phẩm)</h1>
+        </div>
+
+        {renderCartContent()}
       </main>
 
       <Footer />

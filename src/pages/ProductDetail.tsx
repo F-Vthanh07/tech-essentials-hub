@@ -24,6 +24,7 @@ import ProductGallery from "@/components/ProductGallery";
 import RelatedProducts from "@/components/RelatedProducts";
 import { products } from "@/data/products";
 import { productService } from "@/services/ProductService";
+import { cartService } from "@/services/CartService";
 import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
@@ -160,13 +161,38 @@ const ProductDetail = () => {
   const originalDisplayPrice = displayDiscount > 0 ? displayPrice : product.originalPrice;
   const finalPrice = displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice;
 
-  const handleAddToCart = () => {
-    const colorLabel = selectedColor ? ` - ${selectedColor.name}` : "";
-    addToCart(product, quantity, selectedColor || undefined);
-    toast({
-      title: "Đã thêm vào giỏ hàng",
-      description: `${quantity}x ${product.name}${colorLabel}`,
-    });
+  const handleAddToCart = async () => {
+    const productVariantId = selectedColor?.id || product.variantId;
+
+    if (!productVariantId) {
+      toast({
+        title: "Lỗi",
+        description: "Sản phẩm chưa có biến thể để thêm vào giỏ",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await cartService.createCartItem({
+        productVariantId,
+        quantity,
+      });
+
+      const colorLabel = selectedColor ? ` - ${selectedColor.name}` : "";
+      addToCart(product, quantity, selectedColor || undefined);
+      toast({
+        title: "Đã thêm vào giỏ hàng",
+        description: `${quantity}x ${product.name}${colorLabel}`,
+      });
+    } catch (err) {
+      console.warn("add to cart failed", err);
+      toast({
+        title: "Lỗi",
+        description: "Không thể thêm vào giỏ hàng",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleBuyNow = () => {
@@ -186,12 +212,37 @@ const ProductDetail = () => {
     });
   };
 
-  const handleAddRelatedToCart = (productToAdd: Product) => {
-    addToCart(productToAdd, 1);
-    toast({
-      title: "Đã thêm vào giỏ hàng",
-      description: `1x ${productToAdd.name}`,
-    });
+  const handleAddRelatedToCart = async (productToAdd: Product) => {
+    const productVariantId = productToAdd.variantId;
+
+    if (!productVariantId) {
+      toast({
+        title: "Lỗi",
+        description: "Sản phẩm chưa có biến thể để thêm vào giỏ",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await cartService.createCartItem({
+        productVariantId,
+        quantity: 1,
+      });
+
+      addToCart(productToAdd, 1);
+      toast({
+        title: "Đã thêm vào giỏ hàng",
+        description: `1x ${productToAdd.name}`,
+      });
+    } catch (err) {
+      console.warn("add related product to cart failed", err);
+      toast({
+        title: "Lỗi",
+        description: "Không thể thêm vào giỏ hàng",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleShare = async () => {

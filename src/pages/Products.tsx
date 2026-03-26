@@ -5,13 +5,37 @@ import FloatingContact from "@/components/FloatingContact";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { Product } from "@/types/product";
+import { cartService } from "@/services/CartService";
 
 const Products = () => {
   const { addToCart } = useCart();
 
-  const handleAddToCart = (product: Product) => {
-    addToCart(product);
-    toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+  const handleAddToCart = async (product: Product) => {
+    const cartId = localStorage.getItem("cartId");
+    if (!cartId) {
+      toast.error("Chưa có giỏ hàng cho tài khoản, vui lòng đăng nhập lại");
+      return;
+    }
+
+    const productVariantId = product.variantId || product.colorVariants?.[0]?.id;
+
+    if (!productVariantId) {
+      toast.error("Sản phẩm chưa có biến thể để thêm vào giỏ");
+      return;
+    }
+
+    try {
+      await cartService.createCartItem({
+        productVariantId,
+        quantity: 1,
+      });
+
+      addToCart(product);
+      toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+    } catch (err) {
+      console.warn("add cart item failed", err);
+      toast.error("Không thể thêm vào giỏ hàng");
+    }
   };
 
   return (
