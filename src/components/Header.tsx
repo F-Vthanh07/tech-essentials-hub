@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut, Sun, Moon } from "lucide-react";
+import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -230,6 +230,14 @@ const Header = () => {
                 ✨ Custom ốp lưng
               </Button>
             </li>
+            {user ? (
+              <li>
+                <Button variant="ghost" className="font-medium flex items-center gap-2" onClick={() => navigate('/my-custom-products')}>
+                  <Sparkles className="w-4 h-4 text-purple-500" />
+                  Thiết kế của tôi
+                </Button>
+              </li>
+            ) : null}
           </ul>
         </div>
       </nav>
@@ -281,6 +289,20 @@ const Header = () => {
                   ✨ Custom ốp lưng
                 </Button>
               </li>
+              {user ? (
+                <li>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start font-medium"
+                    onClick={() => {
+                      navigate('/my-custom-products');
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    Thiết kế của tôi
+                  </Button>
+                </li>
+              ) : null}
             </ul>
           </div>
         </div>

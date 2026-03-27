@@ -1,6 +1,6 @@
 
 // const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '';
-const BASE_URL = "https://localhost:7240";
+const BASE_URL = "http://localhost:5200";
 console.debug('[httpClient] base URL =', BASE_URL || '(relative)');
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {

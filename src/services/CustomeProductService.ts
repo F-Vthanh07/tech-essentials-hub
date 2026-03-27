@@ -57,6 +57,10 @@ export interface CustomProduct {
   price?: number;
   status?: string;
   ownerId?: string;
+  // Returned by backend for custom case/design, used for rendering "my designs"
+  configurationJson?: string;
+  previewUrl?: string;
+  productVariantId?: string;
 }
 
 export type CustomProductCreatePayload = Omit<CustomProduct, 'id'>;
@@ -72,7 +76,9 @@ export interface CustomCasePayload {
 }
 
 export const customProductApi = {
-  getMyCustomProducts: () => customProductClient.get<CustomProduct[]>('/api/CustomProduct/my'),
+  // Backend pagination: send `page` (page 1..10, etc.)
+  getMyCustomProducts: (page: number) =>
+    customProductClient.get<CustomProduct[]>(`/api/CustomProduct/my?page=${encodeURIComponent(String(page))}`),
   getCustomProductById: (id: string) => customProductClient.get<CustomProduct>(`/api/CustomProduct/${id}`),
   createCustomProduct: (data: CustomProductCreatePayload) => customProductClient.post<CustomProduct>('/api/CustomProduct', data),
   createCustomCase: (data: CustomCasePayload) => customProductClient.post<CustomProduct>('/api/CustomProduct', data),

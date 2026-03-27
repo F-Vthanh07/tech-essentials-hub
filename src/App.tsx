@@ -15,6 +15,7 @@ import Brands from "./pages/Brands";
 import TechNewsPage from "./pages/TechNewsPage";
 import Support from "./pages/Support";
 import CustomCase from "./pages/CustomCase";
+import MyCustomProducts from "./pages/MyCustomProducts";
 import NotFound from "./pages/NotFound";
 import Cart from "./pages/Cart";
 import Auth from "./pages/Auth";
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/tech-news" element={<TechNewsPage />} />
               <Route path="/support" element={<Support />} />
               <Route path="/custom-case" element={<CustomCase />} />
+              <Route path="/my-custom-products" element={<MyCustomProducts />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/auth" element={<Auth />} />

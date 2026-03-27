@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
  import { Palette, Smartphone, ShoppingCart, Sparkles, RotateCcw, PenTool } from "lucide-react";
  import CaseDesignEditor from "@/components/CaseDesignEditor";
-import { deviceService } from "@/services/DeviceService";
 import { customProductApi } from "@/services/CustomeProductService";
-import { ApiDevice } from "@/types/product";
+import { compatibilityApi, variantApi } from "@/services/ProductService";
+import { ApiProductCompatibility, ApiProductVariant } from "@/types/product";
 import { toast } from "sonner";
 
 // Phone models with specific designs
@@ -104,8 +104,6 @@ const phoneModels: Record<string, {
     borderRadius: "rounded-[2rem]",
   },
 };
-
-const defaultAvailableDevices = Object.keys(phoneModels);
 
 const caseColors = [
   { id: "transparent", name: "Trong suốt", color: "bg-gray-100 border-2 border-dashed" },
@@ -220,36 +218,56 @@ const NotchModule = ({ style }: { style: string }) => {
  
  const CustomCase = () => {
   const navigate = useNavigate();
-  const [selectedDevice, setSelectedDevice] = useState("");
+  // user selects productVariantId (variant id). For preview/editor, we map it to device name.
+  const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedColor, setSelectedColor] = useState("transparent");
   const [selectedMaterial, setSelectedMaterial] = useState("soft");
-    const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
-    const [isDeviceLoading, setIsDeviceLoading] = useState(false);
+  const [variants, setVariants] = useState<ApiProductVariant[]>([]);
+  const [compatibilities, setCompatibilities] = useState<ApiProductCompatibility[]>([]);
+  const [isVariantsLoading, setIsVariantsLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [designElements, setDesignElements] = useState<DesignElement[]>([]);
   const [isSavingCustomCase, setIsSavingCustomCase] = useState(false);
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      setIsDeviceLoading(true);
+    const fetchVariantsAndCompatibilities = async () => {
+      setIsVariantsLoading(true);
       try {
-        const devices = await deviceService.getAll();
-        if (devices.length > 0) {
-          setApiDevices(devices);
-        }
+        const [variantsData, compatibilitiesData] = await Promise.all([
+          variantApi.getAll().catch(() => []),
+          compatibilityApi.getAll().catch(() => []),
+        ]);
+
+        setVariants(variantsData);
+        setCompatibilities(compatibilitiesData);
       } catch (error) {
-        console.warn("Failed to fetch devices for custom case page", error);
+        console.warn("Failed to fetch variants for custom case page", error);
       } finally {
-        setIsDeviceLoading(false);
+        setIsVariantsLoading(false);
       }
     };
 
-    fetchDevices();
+    fetchVariantsAndCompatibilities();
   }, []);
 
-  const availableDevices = apiDevices.length > 0
-    ? apiDevices.map((device) => device.name)
-    : defaultAvailableDevices;
+  const selectedVariant = useMemo(
+    () => variants.find((v) => v.id === selectedVariantId) ?? null,
+    [variants, selectedVariantId]
+  );
+
+  const selectedDeviceName = useMemo(() => {
+    if (!selectedVariant) return "";
+    const compatibleDevices = compatibilities.filter((c) => c.productId === selectedVariant.productId);
+    const directDeviceName = compatibleDevices[0]?.deviceName ?? "";
+    if (directDeviceName) return directDeviceName;
+
+    // Fallback: if backend does not provide deviceName mapping correctly,
+    // try to match a phone model key from the variant name.
+    const variantName = selectedVariant.name || "";
+    return Object.keys(phoneModels).find((k) => variantName.includes(k)) ?? "";
+  }, [selectedVariant, compatibilities]);
+
+  const resolvedDeviceName = selectedDeviceName || selectedVariant?.name || "";
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
   
@@ -269,14 +287,14 @@ const NotchModule = ({ style }: { style: string }) => {
   
   // Get current phone model config or default
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
-  const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
+  const currentPhone = selectedDeviceName ? phoneModels[selectedDeviceName] || defaultPhone : defaultPhone;
 
   const handleDesignChange = useCallback((elements: DesignElement[]) => {
     setDesignElements(elements);
   }, []);
 
   const handleReset = () => {
-    setSelectedDevice("");
+    setSelectedVariantId("");
     setSelectedColor("transparent");
     setSelectedMaterial("soft");
     setQuantity(1);
@@ -284,20 +302,19 @@ const NotchModule = ({ style }: { style: string }) => {
   };
 
   const handleAddToCart = async () => {
-    if (!selectedDevice) {
-      toast.error("Vui lòng chọn thiết bị");
+    if (!selectedVariantId) {
+      toast.error("Vui lòng chọn variant id");
       return;
     }
 
-    const device = apiDevices.find((d) => d.name === selectedDevice);
-    const productVariantId = device?.id ?? selectedDevice;
+    const productVariantId = selectedVariantId;
 
     const configurationData = {
       color: selectedColor,
       material: selectedMaterial,
       quantity,
       designElements,
-      selectedDevice,
+      selectedDevice: resolvedDeviceName,
       totalPrice,
     };
 
@@ -311,7 +328,7 @@ const NotchModule = ({ style }: { style: string }) => {
       setIsSavingCustomCase(true);
       await customProductApi.createCustomCase(payload);
       toast.success("Đã lưu thiết kế custom và thêm vào giỏ hàng", {
-        description: `${selectedDevice} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`,
+        description: `${resolvedDeviceName} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`,
       });
     } catch (error) {
       console.error("Failed to save custom case", error);
@@ -323,20 +340,19 @@ const NotchModule = ({ style }: { style: string }) => {
   };
 
   const handleBuyNow = async () => {
-    if (!selectedDevice) {
-      toast.error("Vui lòng chọn thiết bị");
+    if (!selectedVariantId) {
+      toast.error("Vui lòng chọn variant id");
       return;
     }
 
-    const device = apiDevices.find((d) => d.name === selectedDevice);
-    const productVariantId = device?.id ?? selectedDevice;
+    const productVariantId = selectedVariantId;
 
     const configurationData = {
       color: selectedColor,
       material: selectedMaterial,
       quantity,
       designElements,
-      selectedDevice,
+      selectedDevice: resolvedDeviceName,
       totalPrice,
     };
 
@@ -399,14 +415,14 @@ const NotchModule = ({ style }: { style: string }) => {
                {/* Device Name Badge */}
                <div className="text-center mt-4">
                  <Badge variant="secondary">
-                   {selectedDevice || "Chọn thiết bị"}
+                  {resolvedDeviceName || "Chọn variant"}
                  </Badge>
                </div>
                
                <div className="mt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{totalPrice.toLocaleString()}đ</p>
                 <p className="text-muted-foreground text-sm">
-                  {selectedDevice || "Chưa chọn thiết bị"} • {selectedMaterialData?.name}
+                  {resolvedDeviceName || "Chưa chọn variant"} • {selectedMaterialData?.name}
                 </p>
               </div>
             </CardContent>
@@ -419,18 +435,18 @@ const NotchModule = ({ style }: { style: string }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Smartphone className="w-5 h-5" />
-                  Chọn thiết bị
+                  Chọn variant (variantId)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={isDeviceLoading ? "Đang tải danh sách thiết bị..." : "Chọn model điện thoại của bạn"} />
+                    <SelectValue placeholder={isVariantsLoading ? "Đang tải danh sách variant..." : "Chọn variant id của bạn"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableDevices.map((device) => (
-                      <SelectItem key={device} value={device}>
-                        {device}
+                    {variants.map((variant) => (
+                      <SelectItem key={variant.id} value={variant.id}>
+                        {variant.name} ({variant.size})
                       </SelectItem>
                     ))}
                   </SelectContent>
