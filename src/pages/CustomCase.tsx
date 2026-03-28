@@ -9,8 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
  import { Palette, Smartphone, ShoppingCart, Sparkles, RotateCcw, PenTool } from "lucide-react";
  import CaseDesignEditor from "@/components/CaseDesignEditor";
-import { deviceService } from "@/services/DeviceService";
-import { ApiDevice } from "@/types/product";
+import { productService } from "@/services/ProductService";
+import { customProductService } from "@/services/CustomProductService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
+import { Product } from "@/types/product";
 import { toast } from "sonner";
 
 // Phone models with specific designs
@@ -219,33 +222,38 @@ const NotchModule = ({ style }: { style: string }) => {
  
  const CustomCase = () => {
   const navigate = useNavigate();
-  const [selectedDevice, setSelectedDevice] = useState("");
+  const { user } = useAuth();
+  const { addToCart } = useCart();
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("transparent");
   const [selectedMaterial, setSelectedMaterial] = useState("soft");
-    const [apiDevices, setApiDevices] = useState<ApiDevice[]>([]);
-    const [isDeviceLoading, setIsDeviceLoading] = useState(false);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [isProductLoading, setIsProductLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
-
-    const availableDevices = apiDevices.length > 0
-      ? apiDevices.map((device) => device.name)
-      : defaultAvailableDevices;
+  const [designElements, setDesignElements] = useState<DesignElement[]>([]);
+  const [isSubmittingCustomOrder, setIsSubmittingCustomOrder] = useState(false);
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+  const selectedProductName = selectedProduct?.name ?? "";
+  const availableProductList = products.length > 0
+    ? products
+    : defaultAvailableDevices.map((name) => ({ id: name, name } as Product));
 
     useEffect(() => {
-      const fetchDevices = async () => {
-        setIsDeviceLoading(true);
+      const fetchProducts = async () => {
+        setIsProductLoading(true);
         try {
-          const devices = await deviceService.getAll();
-          if (devices.length > 0) {
-            setApiDevices(devices);
+          const fetchedProducts = await productService.getAllProducts({ includeInactive: false });
+          if (fetchedProducts.length > 0) {
+            setProducts(fetchedProducts);
           }
         } catch (error) {
-          console.warn("Failed to fetch devices for custom case page", error);
+          console.warn("Failed to fetch products for custom case page", error);
         } finally {
-          setIsDeviceLoading(false);
+          setIsProductLoading(false);
         }
       };
 
-      fetchDevices();
+      fetchProducts();
     }, []);
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
@@ -266,37 +274,123 @@ const NotchModule = ({ style }: { style: string }) => {
   
   // Get current phone model config or default
   const defaultPhone = phoneModels["iPhone 16 Pro Max"];
-  const currentPhone = selectedDevice ? phoneModels[selectedDevice] || defaultPhone : defaultPhone;
+  const currentPhone = selectedProductName ? phoneModels[selectedProductName] || defaultPhone : defaultPhone;
 
-  const handleDesignChange = useCallback((_elements: DesignElement[]) => {
-    // Keeps callback stable for editor updates; custom design payload can be wired to cart later.
-   }, []);
+  const handleDesignChange = useCallback((elements: DesignElement[]) => {
+    setDesignElements(elements);
+  }, []);
+
+  const buildCustomOrderPayload = () => {
+    if (!user?.id) {
+      toast.error("Vui lòng đăng nhập để tạo đơn custom");
+      return null;
+    }
+
+    if (!selectedProductId) {
+      toast.error("Vui lòng chọn sản phẩm");
+      return null;
+    }
+
+    const textContent = designElements
+      .filter((element) => element.type === "text")
+      .map((element) => element.content?.trim())
+      .filter(Boolean)
+      .join(" | ");
+
+    const imageUrls = designElements
+      .filter((element) => element.type === "image")
+      .map((element) => element.content)
+      .filter(Boolean);
+
+    return {
+      accountId: user.id,
+      productId: selectedProductId,
+      color: selectedColor,
+      material: selectedMaterial,
+      textContent,
+      note: `Custom case for ${selectedProductName || "selected product"}`,
+      quantity,
+      imageUrls,
+      customerName: user.name ?? "",
+      customerEmail: user.email ?? "",
+      customerPhone: user.phone ?? "",
+    };
+  };
+
+  const buildCustomCartProduct = (customOrderId?: string): Product | null => {
+    if (!selectedProduct) return null;
+
+    return {
+      ...selectedProduct,
+      // Use a distinct id so custom items do not merge with normal product items.
+      id: customOrderId ? `custom-${customOrderId}` : `custom-${selectedProduct.id}-${Date.now()}`,
+      name: `Custom - ${selectedProduct.name}`,
+      price: discountedItemPrice,
+      image:
+        designElements.find((element) => element.type === "image")?.content ||
+        selectedProduct.image,
+      description: `Custom case | Color: ${selectedColor} | Material: ${selectedMaterial}`,
+      variantId: selectedProduct.variantId || selectedProduct.id,
+    };
+  };
 
   const handleReset = () => {
-    setSelectedDevice("");
+    setSelectedProductId("");
     setSelectedColor("transparent");
     setSelectedMaterial("soft");
     setQuantity(1);
     toast.info("Đã reset thiết kế");
   };
 
-  const handleAddToCart = () => {
-    if (!selectedDevice) {
-      toast.error("Vui lòng chọn thiết bị");
+  const handleAddToCart = async () => {
+    if (!selectedProductId) {
+      toast.error("Vui lòng chọn sản phẩm");
       return;
     }
-    toast.success(`Đã thêm ốp lưng custom vào giỏ hàng!`, {
-      description: `${selectedDevice} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`
-    });
+
+    const payload = buildCustomOrderPayload();
+    if (!payload) return;
+
+    setIsSubmittingCustomOrder(true);
+    try {
+      const createdCustomOrder = await customProductService.create(payload);
+      const customCartProduct = buildCustomCartProduct(createdCustomOrder?.id);
+      if (customCartProduct) {
+        addToCart(customCartProduct, quantity);
+      }
+      toast.success(`Đã tạo đơn custom thành công!`, {
+        description: `Đã thêm vào giỏ: ${selectedProductName || "Sản phẩm đã chọn"} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`,
+      });
+    } catch (error) {
+      toast.error("Tạo đơn custom thất bại", {
+        description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+      });
+    } finally {
+      setIsSubmittingCustomOrder(false);
+    }
   };
 
-  const handleBuyNow = () => {
-    if (!selectedDevice) {
-      toast.error("Vui lòng chọn thiết bị");
+  const handleBuyNow = async () => {
+    if (!selectedProductId) {
+      toast.error("Vui lòng chọn sản phẩm");
       return;
     }
-    toast.success("Đang chuyển đến trang thanh toán...");
-    navigate("/checkout");
+
+    const payload = buildCustomOrderPayload();
+    if (!payload) return;
+
+    setIsSubmittingCustomOrder(true);
+    try {
+      await customProductService.create(payload);
+      toast.success("Đã tạo đơn custom. Đang chuyển đến trang thanh toán...");
+      navigate("/checkout");
+    } catch (error) {
+      toast.error("Tạo đơn custom thất bại", {
+        description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+      });
+    } finally {
+      setIsSubmittingCustomOrder(false);
+    }
   };
 
   return (
@@ -339,14 +433,14 @@ const NotchModule = ({ style }: { style: string }) => {
                {/* Device Name Badge */}
                <div className="text-center mt-4">
                  <Badge variant="secondary">
-                   {selectedDevice || "Chọn thiết bị"}
+                  {selectedProductName || "Chọn sản phẩm"}
                  </Badge>
                </div>
                
                <div className="mt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{totalPrice.toLocaleString()}đ</p>
                 <p className="text-muted-foreground text-sm">
-                  {selectedDevice || "Chưa chọn thiết bị"} • {selectedMaterialData?.name}
+                  {selectedProductName || "Chưa chọn sản phẩm"} • {selectedMaterialData?.name}
                 </p>
               </div>
             </CardContent>
@@ -359,18 +453,18 @@ const NotchModule = ({ style }: { style: string }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Smartphone className="w-5 h-5" />
-                  Chọn thiết bị
+                  Chọn sản phẩm
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={isDeviceLoading ? "Đang tải danh sách thiết bị..." : "Chọn model điện thoại của bạn"} />
+                    <SelectValue placeholder={isProductLoading ? "Đang tải danh sách sản phẩm..." : "Chọn sản phẩm của bạn"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableDevices.map((device) => (
-                      <SelectItem key={device} value={device}>
-                        {device}
+                    {availableProductList.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -493,15 +587,17 @@ const NotchModule = ({ style }: { style: string }) => {
                     variant="outline" 
                     className="flex-1"
                     onClick={handleAddToCart}
+                    disabled={isSubmittingCustomOrder}
                   >
                     <ShoppingCart className="w-4 h-4 mr-2" />
-                    Thêm giỏ hàng
+                    {isSubmittingCustomOrder ? "Đang gửi..." : "Thêm giỏ hàng"}
                   </Button>
                   <Button 
                     className="flex-1"
                     onClick={handleBuyNow}
+                    disabled={isSubmittingCustomOrder}
                   >
-                    Mua ngay
+                    {isSubmittingCustomOrder ? "Đang gửi..." : "Mua ngay"}
                   </Button>
                 </div>
               </CardContent>
