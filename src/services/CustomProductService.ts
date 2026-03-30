@@ -61,4 +61,8 @@ export const customProductService = {
 
   getAll: () =>
     httpClient.get<ApiCustomProduct[]>('/api/custom-order/get-all'),
+
+  /** Đơn custom của tài khoản (cùng pattern với order get-my) */
+  getMy: (accountId: string) =>
+    httpClient.post<ApiCustomProduct[]>('/api/custom-order/get-my', { accountId }),
 };

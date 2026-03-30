@@ -29,6 +29,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminCustomOrders from "./pages/admin/AdminCustomOrders";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -62,10 +63,18 @@ const App = () => (
               <Route path="/orders/:id/status" element={<OrderStatus />} />
               
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute requiredRole="Admin"><AdminLayout /></ProtectedRoute>}>
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requiredRole="Admin">
+                    <AdminLayout />
+                  </ProtectedRoute>
+                }
+              >
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
+                <Route path="custom-orders" element={<AdminCustomOrders />} />
                 <Route path="reports" element={<AdminReports />} />
               </Route>
               

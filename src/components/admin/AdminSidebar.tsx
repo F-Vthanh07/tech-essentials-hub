@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
   BarChart3,
   ChevronLeft,
   Menu,
-  LogOut
+  LogOut,
+  PenTool,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ const menuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Sản phẩm", url: "/admin/products", icon: Package },
   { title: "Đơn hàng", url: "/admin/orders", icon: ShoppingCart },
+  { title: "Đơn custom", url: "/admin/custom-orders", icon: PenTool },
   { title: "Báo cáo", url: "/admin/reports", icon: BarChart3 },
 ];
 

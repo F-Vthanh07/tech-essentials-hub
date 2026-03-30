@@ -1,24 +1,28 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { 
-  Package, 
-  Truck, 
-  CheckCircle2, 
-  Clock, 
-  MapPin, 
-  Phone, 
-  ChevronDown, 
+import {
+  Package,
+  Truck,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Phone,
+  ChevronDown,
   ChevronUp,
   Search,
   Calendar,
   CreditCard,
-  XCircle
+  XCircle,
+  PenTool,
+  Loader2,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -27,6 +31,246 @@ import { sampleOrders, getOrderStatusSteps } from "@/data/orders";
 import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
 import { getStoredOrders } from "@/lib/orderStorage";
+import {
+  customProductService,
+  ApiCustomProduct,
+} from "@/services/CustomProductService";
+import { toast } from "@/hooks/use-toast";
+
+/** Trạng thái sau khi khách đã phản hồi báo giá (không hiện lại nút chấp nhận/từ chối). */
+const isCustomQuoteFinalized = (status?: string) => {
+  const s = (status || "").toLowerCase().replace(/[\s_]+/g, "");
+  const done = new Set([
+    "quoteaccepted",
+    "quoterejected",
+    "quotedaccepted",
+    "quotedrejected",
+    "customeraccepted",
+    "customerrejected",
+    "cancelled",
+    "completed",
+    "delivered",
+    "accepted",
+    "rejected",
+  ]);
+  return done.has(s);
+};
+
+const canRespondToCustomQuote = (order: ApiCustomProduct) => {
+  const price = order.price;
+  if (typeof price !== "number" || price <= 0) return false;
+  return !isCustomQuoteFinalized(order.status);
+};
+
+const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
+  const [items, setItems] = useState<ApiCustomProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const data = await customProductService.getMy(accountId);
+        if (!cancelled) setItems(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.warn("get-my custom orders failed", e);
+        if (!cancelled) {
+          setItems([]);
+          toast({
+            title: "Không tải được đơn custom",
+            description:
+              "Kiểm tra kết nối hoặc đăng nhập lại. Nếu API chưa có /api/custom-order/get-my, cần bổ sung backend.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+
+  const handleQuoteResponse = async (
+    order: ApiCustomProduct,
+    accept: boolean
+  ) => {
+    setActingId(order.id);
+    try {
+      await customProductService.updateStatus(order.id, {
+        status: accept ? "QuoteAccepted" : "QuoteRejected",
+        note: accept
+          ? "Khách chấp nhận báo giá"
+          : "Khách từ chối báo giá",
+      });
+      setItems((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? {
+                ...o,
+                status: accept ? "QuoteAccepted" : "QuoteRejected",
+              }
+            : o
+        )
+      );
+      toast({
+        title: accept ? "Đã chấp nhận báo giá" : "Đã từ chối báo giá",
+        description: accept
+          ? "Shop sẽ liên hệ hoặc tiếp tục xử lý đơn theo quy trình."
+          : "Bạn có thể tạo yêu cầu custom mới nếu cần.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Lỗi",
+        description: "Không cập nhật được phản hồi. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Card className="p-10 text-center">
+        <PenTool className="w-14 h-14 mx-auto text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Chưa có đơn custom</h3>
+        <p className="text-muted-foreground mb-4">
+          Thiết kế ốp lưng tại trang custom — đơn của bạn sẽ hiển thị ở đây.
+        </p>
+        <Button asChild>
+          <Link to="/custom-case">Tạo đơn custom</Link>
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((order, index) => {
+        const code = `CUST-${String(index + 1).padStart(3, "0")}`;
+        const showQuote =
+          typeof order.price === "number" && order.price > 0;
+        const canRespond = canRespondToCustomQuote(order);
+
+        return (
+          <Card key={order.id}>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <PenTool className="h-5 w-5" />#{code}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Đặt lúc:{" "}
+                    {order.createdAt
+                      ? formatDate(order.createdAt)
+                      : "—"}
+                  </p>
+                </div>
+                <Badge variant="secondary">
+                  {order.status || "Đang xử lý"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm space-y-1">
+                <p>
+                  <span className="text-muted-foreground">Sản phẩm / nền:</span>{" "}
+                  <span className="font-medium">
+                    Màu {order.color || "—"}, {order.material || "—"}
+                  </span>
+                </p>
+                {order.textContent && (
+                  <p>
+                    <span className="text-muted-foreground">Nội dung in:</span>{" "}
+                    {order.textContent}
+                  </p>
+                )}
+                <p>
+                  <span className="text-muted-foreground">Số lượng:</span>{" "}
+                  {order.quantity ?? 1}
+                </p>
+              </div>
+
+              {showQuote && (
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                  <p className="font-semibold text-primary">
+                    Báo giá từ cửa hàng: {formatPrice(order.price!)}
+                  </p>
+                  {order.estimatedDeliveryDate && (
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">
+                        Dự kiến giao:{" "}
+                      </span>
+                      {new Date(
+                        order.estimatedDeliveryDate
+                      ).toLocaleDateString("vi-VN")}
+                    </p>
+                  )}
+                  {order.note && (
+                    <p className="text-sm text-muted-foreground">
+                      Ghi chú shop: {order.note}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!showQuote && (
+                <p className="text-sm text-muted-foreground">
+                  Shop chưa gửi báo giá. Bạn sẽ nhận thông tin giá tại đây khi có cập nhật.
+                </p>
+              )}
+
+              {canRespond && (
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    disabled={actingId === order.id}
+                    onClick={() => handleQuoteResponse(order, true)}
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                    Chấp nhận báo giá
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 text-destructive border-destructive/50 hover:bg-destructive/10"
+                    disabled={actingId === order.id}
+                    onClick={() => handleQuoteResponse(order, false)}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                    Từ chối báo giá
+                  </Button>
+                </div>
+              )}
+
+              {showQuote && !canRespond && isCustomQuoteFinalized(order.status) && (
+                <p className="text-sm text-muted-foreground">
+                  Bạn đã phản hồi báo giá cho đơn này.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
 
 const normalizeStatus = (status?: string): Order['status'] => {
   const value = (status || 'pending').toLowerCase();
@@ -308,6 +552,7 @@ const OrderCard = ({ order, isExpanded, onToggle }: {
 
 const OrderTracking = () => {
   const { user } = useAuth();
+  const [pageTab, setPageTab] = useState<"shop" | "custom">("shop");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
@@ -422,88 +667,115 @@ const OrderTracking = () => {
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">Theo dõi đơn hàng</h1>
             <p className="text-muted-foreground">
-              Xem trạng thái và lịch sử các đơn hàng của bạn
+              Đơn mua tại shop và đơn thiết kế ốp lưng custom của bạn
             </p>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <Input
-              placeholder="Tìm theo mã đơn hàng hoặc mã vận đơn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="all">Tất cả</TabsTrigger>
-              <TabsTrigger value="pending">Chờ xử lý</TabsTrigger>
-              <TabsTrigger value="shipping">Đang giao</TabsTrigger>
-              <TabsTrigger value="delivered">Đã giao</TabsTrigger>
+          <Tabs
+            value={pageTab}
+            onValueChange={(v) => setPageTab(v as "shop" | "custom")}
+            className="w-full"
+          >
+            <TabsList className="mb-6 grid h-auto w-full max-w-md grid-cols-2 p-1">
+              <TabsTrigger value="shop">Đơn mua sắm</TabsTrigger>
+              <TabsTrigger value="custom">Đơn custom ốp lưng</TabsTrigger>
             </TabsList>
-          </Tabs>
 
-          {/* Orders List */}
-          <div className="space-y-4">
-            {filteredOrders.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Không tìm thấy đơn hàng</h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchQuery 
-                    ? "Không có đơn hàng nào khớp với tìm kiếm của bạn"
-                    : "Bạn chưa có đơn hàng nào trong mục này"
-                  }
-                </p>
-                <Button asChild>
-                  <Link to="/products">Tiếp tục mua sắm</Link>
-                </Button>
-              </Card>
-            ) : (
-              filteredOrders.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  isExpanded={expandedOrderId === order.id}
-                  onToggle={() => setExpandedOrderId(
-                    expandedOrderId === order.id ? null : order.id
-                  )}
+            <TabsContent value="shop" className="mt-0 space-y-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Tìm theo mã đơn hàng hoặc mã vận đơn..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
                 />
-              ))
-            )}
-          </div>
+              </div>
 
-          {/* Quick Stats */}
-          {filteredOrders.length > 0 && (
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{orders.length}</p>
-                <p className="text-sm text-muted-foreground">Tổng đơn hàng</p>
-              </Card>
-              <Card className="p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">
-                  {orders.filter(o => o.status === 'shipping').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Đang giao</p>
-              </Card>
-              <Card className="p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">
-                  {orders.filter(o => o.status === 'delivered').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Đã giao</p>
-              </Card>
-              <Card className="p-4 text-center">
-                <p className="text-2xl font-bold">
-                  {formatPrice(orders.reduce((sum, o) => sum + o.total, 0))}
-                </p>
-                <p className="text-sm text-muted-foreground">Tổng chi tiêu</p>
-              </Card>
-            </div>
-          )}
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="all">Tất cả</TabsTrigger>
+                  <TabsTrigger value="pending">Chờ xử lý</TabsTrigger>
+                  <TabsTrigger value="shipping">Đang giao</TabsTrigger>
+                  <TabsTrigger value="delivered">Đã giao</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div className="space-y-4">
+                {filteredOrders.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Không tìm thấy đơn hàng</h3>
+                    <p className="text-muted-foreground mb-4">
+                      {searchQuery
+                        ? "Không có đơn hàng nào khớp với tìm kiếm của bạn"
+                        : "Bạn chưa có đơn hàng nào trong mục này"}
+                    </p>
+                    <Button asChild>
+                      <Link to="/products">Tiếp tục mua sắm</Link>
+                    </Button>
+                  </Card>
+                ) : (
+                  filteredOrders.map((order) => (
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      isExpanded={expandedOrderId === order.id}
+                      onToggle={() =>
+                        setExpandedOrderId(
+                          expandedOrderId === order.id ? null : order.id
+                        )
+                      }
+                    />
+                  ))
+                )}
+              </div>
+
+              {filteredOrders.length > 0 && (
+                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className="p-4 text-center">
+                    <p className="text-2xl font-bold text-primary">{orders.length}</p>
+                    <p className="text-sm text-muted-foreground">Tổng đơn hàng</p>
+                  </Card>
+                  <Card className="p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-600">
+                      {orders.filter((o) => o.status === "shipping").length}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Đang giao</p>
+                  </Card>
+                  <Card className="p-4 text-center">
+                    <p className="text-2xl font-bold text-green-600">
+                      {orders.filter((o) => o.status === "delivered").length}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Đã giao</p>
+                  </Card>
+                  <Card className="p-4 text-center">
+                    <p className="text-2xl font-bold">
+                      {formatPrice(orders.reduce((sum, o) => sum + o.total, 0))}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Tổng chi tiêu</p>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="custom" className="mt-0">
+              {!user?.id ? (
+                <Card className="p-10 text-center">
+                  <PenTool className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Đăng nhập để xem đơn custom</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Các yêu cầu thiết kế ốp lưng và báo giá từ shop được quản lý theo tài khoản của bạn.
+                  </p>
+                  <Button asChild>
+                    <Link to="/auth">Đăng nhập</Link>
+                  </Button>
+                </Card>
+              ) : (
+                <UserCustomOrdersSection accountId={user.id} />
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
