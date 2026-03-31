@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, ShoppingCart, Star, Heart } from "lucide-react";
+import { Eye, ShoppingCart, Star, Heart, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Product } from "@/types/product";
+import { usePromotions } from "@/contexts/PromotionContext";
 
 interface ProductCardProps {
   product: Product;
@@ -14,6 +15,9 @@ interface ProductCardProps {
 const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const { getPromotionByProductId } = usePromotions();
+
+  const promotion = getPromotionByProductId(product.id);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -21,6 +25,17 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
       currency: "VND",
     }).format(price);
   };
+
+  const calculateDiscountedPrice = (originalPrice: number) => {
+    if (!promotion) return originalPrice;
+    if (promotion.isPercentage) {
+      return originalPrice * (1 - promotion.discountValue / 100);
+    }
+    return originalPrice - promotion.discountValue;
+  };
+
+  const discountedPrice = calculateDiscountedPrice(product.price);
+  const hasPromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < product.price);
 
   return (
     <Link
@@ -37,8 +52,14 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
         {product.isBestseller && (
           <Badge className="bg-foreground text-background">Bán chạy</Badge>
         )}
-        {product.discount && (
+        {product.discount && !promotion && (
           <Badge variant="destructive">-{product.discount}%</Badge>
+        )}
+        {promotion && (
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <Tag className="w-3 h-3" />
+            -{promotion.isPercentage ? `${promotion.discountValue}%` : promotion.discountValue.toLocaleString("vi-VN") + "đ"}
+          </Badge>
         )}
       </div>
 
@@ -135,14 +156,26 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
         {/* Price */}
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-bold text-primary">
-            {formatPrice(product.price)}
+            {formatPrice(hasPromotion ? discountedPrice : product.price)}
           </span>
-          {product.originalPrice && (
+          {hasPromotion && (
+            <span className="text-sm text-muted-foreground line-through">
+              {formatPrice(product.price)}
+            </span>
+          )}
+          {!hasPromotion && product.originalPrice && (
             <span className="text-sm text-muted-foreground line-through">
               {formatPrice(product.originalPrice)}
             </span>
           )}
         </div>
+        {promotion && (
+          <div className="mt-1">
+            <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+              {promotion.name}
+            </span>
+          </div>
+        )}
       </div>
     </Link>
   );

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CartProvider } from "./contexts/CartContext";
+import { PromotionProvider } from "./contexts/PromotionContext";
 import Index from "./pages/Index";
 import ProductDetail from "./pages/ProductDetail";
 import Checkout from "./pages/Checkout";
@@ -31,6 +32,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminCustomOrders from "./pages/admin/AdminCustomOrders";
 import AdminChatRooms from "./pages/admin/AdminChatRooms";
+import AdminPromotions from "./pages/admin/AdminPromotions";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -40,7 +42,8 @@ const App = () => (
     <BrowserRouter>
       <AuthProvider>
         <CartProvider>
-          <TooltipProvider>
+          <PromotionProvider>
+            <TooltipProvider>
             <Toaster />
             <Sonner />
             <Routes>
@@ -76,6 +79,7 @@ const App = () => (
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="custom-orders" element={<AdminCustomOrders />} />
+                <Route path="promotions" element={<AdminPromotions />} />
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="chat-rooms" element={<AdminChatRooms />} />
               </Route>
@@ -84,6 +88,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>
+          </PromotionProvider>
         </CartProvider>
       </AuthProvider>
     </BrowserRouter>
