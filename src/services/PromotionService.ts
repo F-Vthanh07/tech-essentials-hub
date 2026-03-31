@@ -25,10 +25,9 @@ export interface CreatePromotionPayload {
 export const promotionApi = {
   getAll: () => httpClient.get<Promotion[]>('/api/promotion/get-all'),
   getById: (id: string) => httpClient.get<Promotion>(`/api/promotion/get-by-id/${id}`),
-  getByProductId: (productId: string) => httpClient.get<Promotion[]>(`/api/promotion/get-by-product/${productId}`),
-  create: (data: CreatePromotionPayload) => 
+  create: (data: CreatePromotionPayload) =>
     httpClient.post<Promotion>('/api/promotion/create', data),
-  update: (id: string, data: Partial<CreatePromotionPayload>) => 
+  update: (id: string, data: Partial<CreatePromotionPayload>) =>
     httpClient.put<Promotion>(`/api/promotion/update/${id}`, data),
   delete: (id: string) => httpClient.del<any>(`/api/promotion/delete/${id}`),
 };

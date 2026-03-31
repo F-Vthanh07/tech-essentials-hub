@@ -238,8 +238,8 @@ const Header = () => {
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium text-purple-500" onClick={() => navigate('/custom-case')}>
-                ✨ Custom ốp lưng
+              <Button variant="ghost" className="font-medium" onClick={() => navigate('/custom-case')}>
+                Custom ốp lưng
               </Button>
             </li>
           </ul>
@@ -289,8 +289,8 @@ const Header = () => {
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium text-purple-500" onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
-                  ✨ Custom ốp lưng
+                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
+                  Custom ốp lưng
                 </Button>
               </li>
             </ul>
