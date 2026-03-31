@@ -6,6 +6,7 @@ import ProductGrid from "@/components/ProductGrid";
 import TechNews from "@/components/TechNews";
 import Footer from "@/components/Footer";
 import FloatingContact from "@/components/FloatingContact";
+import StaffChatBubble from "@/components/StaffChatBubble";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import { Product } from "@/types/product";
@@ -80,6 +81,7 @@ const Index = () => {
 
       <Footer />
       <FloatingContact />
+      <StaffChatBubble />
     </div>
   );
 };

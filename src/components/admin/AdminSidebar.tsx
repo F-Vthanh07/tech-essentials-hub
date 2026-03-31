@@ -8,6 +8,7 @@ import {
   Menu,
   LogOut,
   PenTool,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ const menuItems = [
   { title: "Sản phẩm", url: "/admin/products", icon: Package },
   { title: "Đơn hàng", url: "/admin/orders", icon: ShoppingCart },
   { title: "Đơn custom", url: "/admin/custom-orders", icon: PenTool },
+  { title: "Phòng chat", url: "/admin/chat-rooms", icon: MessageCircle },
   { title: "Báo cáo", url: "/admin/reports", icon: BarChart3 },
 ];
 
