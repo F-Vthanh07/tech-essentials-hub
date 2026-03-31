@@ -13,6 +13,7 @@ import {
   Minus,
   Plus,
   Loader2,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import { cartService } from "@/services/CartService";
 import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
+import { usePromotions } from "@/contexts/PromotionContext";
 
 // Extended product data with gallery and description
 const getProductDetails = (product: Product) => {
@@ -61,12 +63,15 @@ const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { getPromotionByProductId } = usePromotions();
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
   const [product, setProduct] = useState<Product | null | undefined>(undefined);
   const [allProducts, setAllProducts] = useState<Product[]>(products);
   const [isLoading, setIsLoading] = useState(true);
+
+  const promotion = product ? getPromotionByProductId(product.id) : undefined;
 
   // Fetch product from API
   useEffect(() => {
@@ -158,8 +163,20 @@ const ProductDetail = () => {
   // Get current display price based on selected color
   const displayPrice = selectedColor?.price ?? product.price;
   const displayDiscount = selectedColor?.discount ?? product.discount ?? 0;
-  const originalDisplayPrice = displayDiscount > 0 ? displayPrice : product.originalPrice;
-  const finalPrice = displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice;
+
+  // Calculate promotion price
+  const calculatePromotionPrice = (basePrice: number) => {
+    if (!promotion) return basePrice;
+    if (promotion.isPercentage) {
+      return basePrice * (1 - promotion.discountValue / 100);
+    }
+    return Math.max(0, basePrice - promotion.discountValue);
+  };
+
+  const promotionPrice = calculatePromotionPrice(displayPrice);
+  const hasActivePromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < displayPrice);
+  const originalDisplayPrice = hasActivePromotion ? displayPrice : (displayDiscount > 0 ? displayPrice : product.originalPrice);
+  const finalPrice = hasActivePromotion ? promotionPrice : (displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice);
 
   const handleAddToCart = async () => {
     const productVariantId = selectedColor?.id || product.variantId;
@@ -330,11 +347,22 @@ const ProductDetail = () => {
               </div>
 
               {/* Price */}
-              <div className="flex items-baseline gap-4">
+              <div className="flex items-baseline gap-4 flex-wrap">
                 <span className="text-3xl font-bold text-primary">
                   {formatPrice(finalPrice)}
                 </span>
-                {(displayDiscount > 0 || originalDisplayPrice) && (
+                {hasActivePromotion && (
+                  <>
+                    <span className="text-xl text-muted-foreground line-through">
+                      {formatPrice(displayPrice)}
+                    </span>
+                    <Badge variant="destructive" className="text-sm flex items-center gap-1">
+                      <Tag className="w-4 h-4" />
+                      -{promotion.isPercentage ? `${promotion.discountValue}%` : promotion.discountValue.toLocaleString("vi-VN") + "đ"}
+                    </Badge>
+                  </>
+                )}
+                {!hasActivePromotion && (displayDiscount > 0 || originalDisplayPrice) && (
                   <>
                     <span className="text-xl text-muted-foreground line-through">
                       {formatPrice(displayPrice)}
@@ -347,6 +375,33 @@ const ProductDetail = () => {
                   </>
                 )}
               </div>
+
+              {/* Promotion Banner */}
+              {promotion && (
+                <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Tag className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-red-600 dark:text-red-400">{promotion.name}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Giảm {promotion.isPercentage ? `${promotion.discountValue}%` : `${promotion.discountValue.toLocaleString("vi-VN")}đ`} 
+                        {" "}khi mua sản phẩm này
+                      </p>
+                      {promotion.endDate && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          ⏰ Khuyến mãi có hiệu lực đến: {new Date(promotion.endDate).toLocaleDateString("vi-VN", { 
+                            day: "2-digit", 
+                            month: "2-digit", 
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Color Variants */}
               {product.colorVariants && product.colorVariants.length > 0 && (
@@ -369,10 +424,15 @@ const ProductDetail = () => {
                         />
                         <div className="text-left">
                           <p className="text-sm font-medium">{color.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
-                            {color.discount ? ` (-${color.discount}%)` : ''}
-                          </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
+                          {color.discount ? ` (-${color.discount}%)` : ''}
+                          {promotion && (
+                            <span className="text-primary ml-1">
+                              → {formatPrice(calculatePromotionPrice(color.price))}
+                            </span>
+                          )}
+                        </p>
                         </div>
                       </button>
                     ))}

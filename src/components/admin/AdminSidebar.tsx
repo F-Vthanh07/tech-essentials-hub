@@ -8,6 +8,7 @@ import {
   Menu,
   LogOut,
   PenTool,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 const menuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Sản phẩm", url: "/admin/products", icon: Package },
+  { title: "Khuyến mãi", url: "/admin/promotions", icon: Tag },
   { title: "Đơn hàng", url: "/admin/orders", icon: ShoppingCart },
   { title: "Đơn custom", url: "/admin/custom-orders", icon: PenTool },
   { title: "Báo cáo", url: "/admin/reports", icon: BarChart3 },
