@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Loader2, ShoppingBag, MapPin, Plus, Trash2, User, Phone } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, ShoppingBag, MapPin, Plus, Trash2, User, Phone, Tag } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
+import { usePromotions } from "@/contexts/PromotionContext";
 import { Product, ColorVariant } from "@/types/product";
 import { Order } from "@/types/order";
 import { SavedAddress } from "@/types/user";
@@ -51,13 +53,23 @@ const CartCheckoutConfirm = () => {
   const location = useLocation();
   const { user, token } = useAuth();
   const { clearCart, loadCartFromBackend } = useCart();
+  const { getPromotionsByProductId, getPromotionByProductId } = usePromotions();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const state = (location.state || {}) as CartCheckoutState;
   const items = state.items || [];
   const fromCart = Boolean(state.fromCart);
 
-  const total = useMemo(
+  const getDiscountedPrice = (basePrice: number, productId: string) => {
+    const bestPromo = getPromotionByProductId(productId);
+    if (!bestPromo) return basePrice;
+    if (bestPromo.isPercentage) {
+      return basePrice * (1 - bestPromo.discountValue / 100);
+    }
+    return Math.max(0, basePrice - bestPromo.discountValue);
+  };
+
+  const subtotal = useMemo(
     () =>
       items.reduce((sum, item) => {
         const unitPrice = item.selectedColor?.price ?? item.price;
@@ -65,6 +77,18 @@ const CartCheckoutConfirm = () => {
       }, 0),
     [items]
   );
+
+  const total = useMemo(
+    () =>
+      items.reduce((sum, item) => {
+        const unitPrice = item.selectedColor?.price ?? item.price;
+        const discountedPrice = getDiscountedPrice(unitPrice, item.id);
+        return sum + discountedPrice * item.quantity;
+      }, 0),
+    [items, getPromotionByProductId]
+  );
+
+  const totalDiscount = subtotal - total;
 
   // Recipient info fields
   const [recipientName, setRecipientName] = useState("");
@@ -233,8 +257,8 @@ const CartCheckoutConfirm = () => {
           quantity: item.quantity,
           price: item.selectedColor?.price ?? item.price,
         })),
-        subtotal: total,
-        discount: 0,
+        subtotal: subtotal,
+        discount: totalDiscount,
         shippingFee: 0,
         total,
         shippingAddress,
@@ -275,9 +299,12 @@ const CartCheckoutConfirm = () => {
 
       toast.success("Tạo đơn thành công, đang chuyển đến cổng thanh toán...");
       globalThis.location.href = paymentUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Create order failed:", error);
-      toast.error("Tạo đơn hàng thất bại. Vui lòng thử lại");
+      const errMsg = typeof error.response?.data === 'string' 
+        ? error.response.data 
+        : error.response?.data?.message || error.message || "Tạo đơn hàng thất bại. Vui lòng thử lại";
+      toast.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -335,8 +362,28 @@ const CartCheckoutConfirm = () => {
                         <p className="text-sm text-muted-foreground mt-1">Biến thể: {item.selectedColor.name}</p>
                       )}
                       <div className="flex items-center justify-between mt-3">
-                        <span className="text-sm">Số lượng: {item.quantity}</span>
-                        <span className="font-bold text-primary">{formatPrice((item.selectedColor?.price ?? item.price) * item.quantity)}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm">Số lượng: {item.quantity}</span>
+                          {/* Promotion Badges */}
+                          <div className="flex flex-wrap gap-1">
+                            {getPromotionsByProductId(item.id).map(promo => (
+                              <Badge key={promo.id} variant="secondary" className="text-[10px] py-0 px-1 border-primary/20 bg-primary/5 text-primary flex items-center gap-1">
+                                <Tag className="w-2 h-2" />
+                                {promo.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-primary">
+                            {formatPrice(getDiscountedPrice(item.selectedColor?.price ?? item.price, item.id) * item.quantity)}
+                          </span>
+                          {getDiscountedPrice(item.selectedColor?.price ?? item.price, item.id) < (item.selectedColor?.price ?? item.price) && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              {formatPrice((item.selectedColor?.price ?? item.price) * item.quantity)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -510,6 +557,16 @@ const CartCheckoutConfirm = () => {
                       <span className="text-muted-foreground">Tổng số lượng</span>
                       <span>{items.reduce((sum, item) => sum + item.quantity, 0)}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tạm tính</span>
+                      <span>{formatPrice(subtotal)}</span>
+                    </div>
+                    {totalDiscount > 0 && (
+                      <div className="flex justify-between text-green-600 dark:text-green-500">
+                        <span>Giảm giá</span>
+                        <span>-{formatPrice(totalDiscount)}</span>
+                      </div>
+                    )}
                   </div>
                   <Separator />
                   <div className="flex justify-between text-lg font-bold">

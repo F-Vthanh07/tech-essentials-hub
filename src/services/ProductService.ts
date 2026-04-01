@@ -86,6 +86,7 @@ function mapVariantToColorVariant(v: ApiProductVariant): ColorVariant {
     colorCode: v.color,
     price: v.price,
     image: v.imageUrl,
+    stockQuantity: v.stockQuantity,
   };
 }
 

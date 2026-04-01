@@ -3,19 +3,22 @@ import { useNavigate, Link } from "react-router-dom";
 import { Minus, Plus, X, Trash2, Tag, ArrowLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePromotions } from "@/contexts/PromotionContext";
 import { discountCodes } from "@/data/products";
 
 const Cart = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { items, isLoading, updateQuantity, removeFromCart, loadCartFromBackend, selectedItemIds, selectItem, unselectItem, selectAllItems, unselectAllItems, getSelectedItems } = useCart();
-  
+  const { getPromotionsByProductId, getPromotionByProductId } = usePromotions();
+
   const [promoCode, setPromoCode] = useState("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState("");
@@ -38,14 +41,18 @@ const Cart = () => {
     return item.selectedColor?.price ?? item.product.price;
   };
 
-  const getItemDiscount = (item: typeof items[0]) => {
-    return item.selectedColor?.discount ?? item.product.discount ?? 0;
+  const getDiscountedPrice = (basePrice: number, productId: string) => {
+    const bestPromo = getPromotionByProductId(productId);
+    if (!bestPromo) return basePrice;
+    if (bestPromo.isPercentage) {
+      return basePrice * (1 - bestPromo.discountValue / 100);
+    }
+    return Math.max(0, basePrice - bestPromo.discountValue);
   };
 
   const getItemFinalPrice = (item: typeof items[0]) => {
-    const price = getItemPrice(item);
-    const discount = getItemDiscount(item);
-    return price * (1 - discount / 100);
+    const basePrice = getItemPrice(item);
+    return getDiscountedPrice(basePrice, item.product.id);
   };
 
   const subtotal = getSelectedItems().reduce((sum, item) => sum + getItemFinalPrice(item) * item.quantity, 0);
@@ -188,6 +195,14 @@ const Cart = () => {
                             <span className="text-sm text-muted-foreground">{item.selectedColor.name}</span>
                           </div>
                         )}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {getPromotionsByProductId(item.product.id).map(promo => (
+                            <Badge key={promo.id} variant="secondary" className="text-[10px] py-0 px-1 border-primary/20 bg-primary/5 text-primary flex items-center gap-1">
+                              <Tag className="w-2 h-2" />
+                              {promo.name}
+                            </Badge>
+                          ))}
+                        </div>
                         <div className="flex items-center gap-2 mt-2">
                           <p className="text-primary font-semibold">
                             {getItemPrice(item) * item.quantity === getItemFinalPrice(item) * item.quantity
@@ -195,7 +210,7 @@ const Cart = () => {
                               : (
                                 <>
                                   <span className="text-primary font-semibold">{formatPrice(getItemFinalPrice(item) * item.quantity)}</span>
-                                  {getItemDiscount(item) > 0 && (
+                                  {getItemPrice(item) > getItemFinalPrice(item) && (
                                     <span className="text-sm text-muted-foreground line-through ml-2">
                                       {formatPrice(getItemPrice(item) * item.quantity)}
                                     </span>

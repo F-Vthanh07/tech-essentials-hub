@@ -4,6 +4,7 @@ import { promotionApi, Promotion } from "@/services/PromotionService";
 interface PromotionContextType {
   promotions: Promotion[];
   getPromotionByProductId: (productId: string) => Promotion | undefined;
+  getPromotionsByProductId: (productId: string) => Promotion[];
   isLoading: boolean;
   refetch: () => Promise<void>;
 }
@@ -37,15 +38,23 @@ export const PromotionProvider = ({ children }: { children: ReactNode }) => {
     fetchPromotions();
   }, []);
 
-  const getPromotionByProductId = (productId: string): Promotion | undefined => {
+  const getPromotionsByProductId = (productId: string): Promotion[] => {
     const now = new Date();
-    return promotions.find(
+    return promotions.filter(
       (p) =>
         p.productId === productId &&
         p.isActive &&
         new Date(p.startDate) <= now &&
         new Date(p.endDate) >= now
     );
+  };
+
+  const getPromotionByProductId = (productId: string): Promotion | undefined => {
+    const activeForProduct = getPromotionsByProductId(productId);
+    if (activeForProduct.length === 0) return undefined;
+    
+    // Return the one with the highest discount value if multiple exist
+    return activeForProduct.sort((a, b) => b.discountValue - a.discountValue)[0];
   };
 
   const activePromotions = promotions.filter((p) => {
@@ -58,6 +67,7 @@ export const PromotionProvider = ({ children }: { children: ReactNode }) => {
       value={{
         promotions: activePromotions,
         getPromotionByProductId,
+        getPromotionsByProductId,
         isLoading,
         refetch: fetchPromotions,
       }}

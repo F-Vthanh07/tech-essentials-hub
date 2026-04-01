@@ -25,6 +25,10 @@ const QuickViewModal = ({ product, onClose, onAddToCart }: QuickViewModalProps) 
     }).format(price);
   };
 
+  const isOutOfStock = product.colorVariants && product.colorVariants.length > 0
+    ? product.colorVariants.every(v => v.stockQuantity !== undefined && v.stockQuantity <= 0)
+    : false;
+
   return (
     <Dialog open={!!product} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden">
@@ -40,7 +44,12 @@ const QuickViewModal = ({ product, onClose, onAddToCart }: QuickViewModalProps) 
               className="w-full h-full object-cover"
             />
             <div className="absolute top-4 left-4 flex flex-col gap-2">
-              {product.isNew && (
+              {isOutOfStock && (
+                <Badge variant="destructive" className="uppercase tracking-wider font-bold shadow-sm">
+                  Hết hàng
+                </Badge>
+              )}
+              {!isOutOfStock && product.isNew && (
                 <Badge className="bg-primary text-primary-foreground">Mới</Badge>
               )}
               {product.isBestseller && (
@@ -115,16 +124,17 @@ const QuickViewModal = ({ product, onClose, onAddToCart }: QuickViewModalProps) 
             {/* Actions */}
             <div className="flex gap-3">
               <Button
-                variant="brand"
+                variant={isOutOfStock ? "secondary" : "brand"}
                 size="lg"
-                className="flex-1"
+                className={`flex-1 ${isOutOfStock ? "opacity-90 cursor-not-allowed" : ""}`}
+                disabled={isOutOfStock}
                 onClick={() => {
                   onAddToCart(product);
                   onClose();
                 }}
               >
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                Thêm vào giỏ
+                {!isOutOfStock && <ShoppingCart className="w-5 h-5 mr-2" />}
+                {isOutOfStock ? "Hết hàng" : "Thêm vào giỏ"}
               </Button>
               <Button variant="outline" size="lg">
                 <Heart className="w-5 h-5" />

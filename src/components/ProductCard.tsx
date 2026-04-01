@@ -37,6 +37,13 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
   const discountedPrice = calculateDiscountedPrice(product.price);
   const hasPromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < product.price);
 
+  // Consider out of stock if all variants have stockQuantity defined and <= 0.
+  // If colorVariants is empty, we assume it's out of stock if we are strictly using variant stock.
+  // Assuming the API provides at least one variant for every product.
+  const isOutOfStock = product.colorVariants && product.colorVariants.length > 0
+    ? product.colorVariants.every(v => v.stockQuantity !== undefined && v.stockQuantity <= 0)
+    : false;
+
   return (
     <Link
       to={`/product/${product.id}`}
@@ -46,7 +53,12 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
     >
       {/* Badges */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-        {product.isNew && (
+        {isOutOfStock && (
+          <Badge variant="destructive" className="uppercase tracking-wider font-bold shadow-sm">
+            Hết hàng
+          </Badge>
+        )}
+        {!isOutOfStock && product.isNew && (
           <Badge className="bg-primary text-primary-foreground">Mới</Badge>
         )}
         {product.isBestseller && (
@@ -105,18 +117,32 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
               <Eye className="w-4 h-4 mr-1" />
               Xem nhanh
             </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              className="flex-1"
-              onClick={(e) => {
-                e.preventDefault();
-                onAddToCart(product);
-              }}
-            >
-              <ShoppingCart className="w-4 h-4 mr-1" />
-              Thêm
-            </Button>
+            {isOutOfStock ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="flex-1 opacity-90 cursor-not-allowed"
+                disabled
+                onClick={(e) => {
+                  e.preventDefault();
+                }}
+              >
+                Hết hàng
+              </Button>
+            ) : (
+              <Button
+                variant="brand"
+                size="sm"
+                className="flex-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onAddToCart(product);
+                }}
+              >
+                <ShoppingCart className="w-4 h-4 mr-1" />
+                Thêm
+              </Button>
+            )}
           </div>
         </div>
       </div>

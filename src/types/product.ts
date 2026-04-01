@@ -5,6 +5,7 @@ export interface ColorVariant {
   price: number;
   discount?: number;
   image?: string;
+  stockQuantity?: number;
 }
 
 export interface Product {

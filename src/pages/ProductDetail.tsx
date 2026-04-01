@@ -67,7 +67,7 @@ const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { getPromotionByProductId } = usePromotions();
+  const { getPromotionsByProductId, getPromotionByProductId } = usePromotions();
   const { user, token } = useAuth();
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -85,7 +85,8 @@ const ProductDetail = () => {
   const [editComment, setEditComment] = useState<string>("");
   const [isUpdatingRating, setIsUpdatingRating] = useState(false);
 
-  const promotion = product ? getPromotionByProductId(product.id) : undefined;
+  const promotions = product ? getPromotionsByProductId(product.id) : [];
+  const bestPromotion = product ? getPromotionByProductId(product.id) : undefined;
 
   // Fetch product from API
   useEffect(() => {
@@ -292,17 +293,19 @@ const ProductDetail = () => {
 
   // Calculate promotion price
   const calculatePromotionPrice = (basePrice: number) => {
-    if (!promotion) return basePrice;
-    if (promotion.isPercentage) {
-      return basePrice * (1 - promotion.discountValue / 100);
+    if (!bestPromotion) return basePrice;
+    if (bestPromotion.isPercentage) {
+      return basePrice * (1 - bestPromotion.discountValue / 100);
     }
-    return Math.max(0, basePrice - promotion.discountValue);
+    return Math.max(0, basePrice - bestPromotion.discountValue);
   };
 
   const promotionPrice = calculatePromotionPrice(displayPrice);
-  const hasActivePromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < displayPrice);
+  const hasActivePromotion = !!bestPromotion && (bestPromotion.isPercentage ? bestPromotion.discountValue < 100 : bestPromotion.discountValue < displayPrice);
   const originalDisplayPrice = hasActivePromotion ? displayPrice : (displayDiscount > 0 ? displayPrice : product.originalPrice);
   const finalPrice = hasActivePromotion ? promotionPrice : (displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice);
+
+  const isOutOfStock = selectedColor?.stockQuantity !== undefined && selectedColor.stockQuantity <= 0;
 
   const handleAddToCart = async () => {
     const productVariantId = selectedColor?.id || product.variantId;
@@ -328,11 +331,15 @@ const ProductDetail = () => {
         title: "Đã thêm vào giỏ hàng",
         description: `${quantity}x ${product.name}${colorLabel}`,
       });
-    } catch (err) {
+    } catch (err: any) {
       console.warn("add to cart failed", err);
+      const errMsg = typeof err.response?.data === 'string' 
+        ? err.response.data 
+        : err.response?.data?.message || err.message || "Không thể thêm vào giỏ hàng";
+
       toast({
         title: "Lỗi",
-        description: "Không thể thêm vào giỏ hàng",
+        description: errMsg,
         variant: "destructive",
       });
     }
@@ -378,11 +385,15 @@ const ProductDetail = () => {
         title: "Đã thêm vào giỏ hàng",
         description: `1x ${productToAdd.name}`,
       });
-    } catch (err) {
+    } catch (err: any) {
       console.warn("add related product to cart failed", err);
+      const errMsg = typeof err.response?.data === 'string' 
+        ? err.response.data 
+        : err.response?.data?.message || err.message || "Không thể thêm vào giỏ hàng";
+
       toast({
         title: "Lỗi",
-        description: "Không thể thêm vào giỏ hàng",
+        description: errMsg,
         variant: "destructive",
       });
     }
@@ -484,7 +495,7 @@ const ProductDetail = () => {
                     </span>
                     <Badge variant="destructive" className="text-sm flex items-center gap-1">
                       <Tag className="w-4 h-4" />
-                      -{promotion.isPercentage ? `${promotion.discountValue}%` : promotion.discountValue.toLocaleString("vi-VN") + "đ"}
+                      -{bestPromotion.isPercentage ? `${bestPromotion.discountValue}%` : bestPromotion.discountValue.toLocaleString("vi-VN") + "đ"}
                     </Badge>
                   </>
                 )}
@@ -502,30 +513,39 @@ const ProductDetail = () => {
                 )}
               </div>
 
-              {/* Promotion Banner */}
-              {promotion && (
-                <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Tag className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-red-600 dark:text-red-400">{promotion.name}</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Giảm {promotion.isPercentage ? `${promotion.discountValue}%` : `${promotion.discountValue.toLocaleString("vi-VN")}đ`} 
-                        {" "}khi mua sản phẩm này
-                      </p>
-                      {promotion.endDate && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          ⏰ Khuyến mãi có hiệu lực đến: {new Date(promotion.endDate).toLocaleDateString("vi-VN", { 
-                            day: "2-digit", 
-                            month: "2-digit", 
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          })}
-                        </p>
-                      )}
+              {/* Promotion Banners */}
+              {promotions.length > 0 && (
+                <div className="space-y-3">
+                  {promotions.map((promo) => (
+                    <div key={promo.id} className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-200 dark:border-red-800 rounded-lg p-4 transition-all hover:bg-red-500/15">
+                      <div className="flex items-start gap-3">
+                        <Tag className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-red-600 dark:text-red-400">{promo.name}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Giảm {promo.isPercentage ? `${promo.discountValue}%` : `${promo.discountValue.toLocaleString("vi-VN")}đ`} 
+                            {" "}khi mua sản phẩm này
+                          </p>
+                          {promo.endDate && (
+                            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                              ⏰ Hiệu lực đến: {new Date(promo.endDate).toLocaleDateString("vi-VN", { 
+                                day: "2-digit", 
+                                month: "2-digit", 
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </p>
+                          )}
+                        </div>
+                        {promo.id === bestPromotion?.id && (
+                          <Badge variant="default" className="text-[10px] px-1.5 py-0 uppercase tracking-tighter shadow-sm animate-pulse">
+                            Tốt nhất
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
 
@@ -553,12 +573,17 @@ const ProductDetail = () => {
                         <p className="text-xs text-muted-foreground">
                           {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
                           {color.discount ? ` (-${color.discount}%)` : ''}
-                          {promotion && (
+                          {bestPromotion && (
                             <span className="text-primary ml-1">
                               → {formatPrice(calculatePromotionPrice(color.price))}
                             </span>
                           )}
                         </p>
+                        {color.stockQuantity !== undefined && (
+                          <p className={`text-[10px] mt-0.5 ${color.stockQuantity > 0 ? 'text-green-600' : 'text-destructive font-semibold'}`}>
+                            {color.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng'}
+                          </p>
+                        )}
                         </div>
                       </button>
                     ))}
@@ -590,43 +615,64 @@ const ProductDetail = () => {
                 </div>
               )}
 
+              {/* Promo Price Breakdown - Small helper for selected color */}
+              {bestPromotion && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md text-xs">
+                  <span className="text-muted-foreground">Giá sau ưu đãi cho các biến thể:</span>
+                  {product.colorVariants?.slice(0, 3).map(cv => (
+                    <span key={cv.id} className="font-bold underline decoration-primary/30">
+                      {formatPrice(cv.price * (bestPromotion.isPercentage ? (1 - bestPromotion.discountValue/100) : 1) - (bestPromotion.isPercentage? 0: bestPromotion.discountValue))}
+                    </span>
+                  ))}
+                  {(product.colorVariants?.length || 0) > 3 && <span className="text-muted-foreground">...</span>}
+                </div>
+              )}
+
               {/* Quantity & Buy Actions */}
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <div className="flex items-center border border-border rounded-lg">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <span className="w-12 text-center font-medium">{quantity}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
-                    <Plus className="w-4 h-4" />
+              {isOutOfStock ? (
+                <div className="pt-4">
+                  <Button size="lg" disabled variant="secondary" className="w-full text-lg cursor-not-allowed">
+                    Sản phẩm tạm hết hàng
                   </Button>
                 </div>
-                <Button
-                  size="lg"
-                  variant="brand"
-                  className="flex-1 shadow-[0_8px_30px_rgba(239,68,68,0.35)]"
-                  onClick={handleBuyNow}
-                >
-                  Mua ngay
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="sm:min-w-[220px]"
-                  onClick={handleAddToCart}
-                >
-                  <ShoppingCart className="w-5 h-5 mr-2" />
-                  Thêm vào giỏ hàng
-                </Button>
-              </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <div className="flex items-center border border-border rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <span className="w-12 text-center font-medium">{quantity}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setQuantity(selectedColor?.stockQuantity ? Math.min(selectedColor.stockQuantity, quantity + 1) : quantity + 1)}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    size="lg"
+                    variant="brand"
+                    className="flex-1 shadow-[0_8px_30px_rgba(239,68,68,0.35)]"
+                    onClick={handleBuyNow}
+                  >
+                    Mua ngay
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="sm:min-w-[220px]"
+                    onClick={handleAddToCart}
+                  >
+                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    Thêm vào giỏ hàng
+                  </Button>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-4 pt-2">
