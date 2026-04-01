@@ -30,6 +30,620 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 
 // ======================================
+// Categories Tab (with dynamic parent options)
+// ======================================
+function CategoriesTab() {
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<ApiCategory | null>(null);
+  const [formData, setFormData] = useState({ name: '', slug: '', parentId: '' });
+
+  const loadCategories = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await categoryService.getAll();
+      setCategories(data);
+    } catch (err) {
+      console.warn('Failed to fetch categories', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadCategories(); }, [loadCategories]);
+
+  const filteredCategories = categories.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.slug && c.slug.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // Get parent options (exclude current editing category)
+  const parentOptions = [
+    { value: '__none__', label: '-- Không có --' },
+    ...categories
+      .filter(c => !editingCategory || c.id !== editingCategory.id)
+      .map(c => ({ value: c.id, label: c.name }))
+  ];
+
+  const handleOpenAdd = () => {
+    setFormData({ name: '', slug: '', parentId: '__none__' });
+    setEditingCategory(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (cat: ApiCategory) => {
+    setEditingCategory(cat);
+    setFormData({
+      name: cat.name || '',
+      slug: cat.slug || '',
+      parentId: cat.parentId || '__none__'
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.slug) {
+      toast({ title: "Lỗi", description: "Vui lòng điền đầy đủ thông tin", variant: "destructive" });
+      return;
+    }
+
+    const parentId = formData.parentId === '__none__' || !formData.parentId ? null : formData.parentId;
+
+    setIsSaving(true);
+    try {
+      if (editingCategory) {
+        await categoryService.update(editingCategory.id, {
+          name: formData.name.trim(),
+          slug: formData.slug.trim(),
+          parentId: parentId
+        });
+        toast({ title: "Thành công", description: "Đã cập nhật danh mục" });
+      } else {
+        await categoryService.create({
+          name: formData.name.trim(),
+          slug: formData.slug.trim(),
+          parentId: parentId
+        });
+        toast({ title: "Thành công", description: "Đã thêm danh mục mới" });
+      }
+      setIsDialogOpen(false);
+      await loadCategories();
+    } catch (err: any) {
+      console.error('Save category failed:', err);
+      toast({ title: "Lỗi", description: err?.message || "Không thể lưu", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc muốn xóa danh mục này?")) return;
+    try {
+      await categoryService.delete(id);
+      toast({ title: "Thành công", description: "Đã xóa danh mục" });
+      await loadCategories();
+    } catch (err) {
+      console.error('Delete category failed:', err);
+      toast({ title: "Lỗi", description: "Không thể xóa danh mục", variant: "destructive" });
+    }
+  };
+
+  const getParentName = (parentId: string | null) => {
+    if (!parentId) return '-';
+    const parent = categories.find(c => c.id === parentId);
+    return parent?.name || '-';
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Tìm kiếm danh mục..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filteredCategories.length} bản ghi</span>
+          <Button onClick={handleOpenAdd} size="sm">
+            <Plus className="h-4 w-4 mr-1" /> Thêm
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tên</TableHead>
+                <TableHead>Slug</TableHead>
+                <TableHead>Danh mục cha</TableHead>
+                <TableHead className="text-right w-[100px]">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredCategories.map((cat) => (
+                <TableRow key={cat.id}>
+                  <TableCell className="font-medium">{cat.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{cat.slug || '-'}</TableCell>
+                  <TableCell>{getParentName(cat.parentId)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(cat)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(cat.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredCategories.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    Không có danh mục nào
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingCategory ? "Sửa danh mục" : "Thêm danh mục mới"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Tên danh mục *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  // Auto-generate slug if editing
+                  if (!editingCategory && !formData.slug) {
+                    const slug = e.target.value
+                      .toLowerCase()
+                      .normalize('NFD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .replace(/[^a-z0-9]+/g, '-')
+                      .replace(/^-+|-+$/g, '');
+                    setFormData(prev => ({ ...prev, slug }));
+                  }
+                }}
+                placeholder="VD: Ốp lưng iPhone"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Slug *</Label>
+              <Input
+                value={formData.slug}
+                onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                placeholder="vd: op-lung-iphone"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Danh mục cha</Label>
+              <Select value={formData.parentId || '__none__'} onValueChange={(v) => setFormData({ ...formData, parentId: v === '__none__' ? '' : v })}>
+                <SelectTrigger><SelectValue placeholder="Chọn danh mục cha..." /></SelectTrigger>
+                <SelectContent>
+                  {parentOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Chọn danh mục cha để tạo danh mục con. Để trống nếu là danh mục gốc.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingCategory ? "Cập nhật" : "Thêm mới"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ======================================
+// ProductCompatibility Tab (with dynamic product/device options)
+// ======================================
+function ProductCompatibilityTab({
+  products,
+  devices,
+  allCompatibilities,
+}: {
+  products: ApiProduct[];
+  devices: ApiDevice[];
+  allCompatibilities: ApiProductCompatibility[];
+}) {
+  const [compatibilities, setCompatibilities] = useState<ApiProductCompatibility[]>(allCompatibilities);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ApiProductCompatibility | null>(null);
+  const [formData, setFormData] = useState({ productId: '', deviceId: '', note: '' });
+
+  // Sync với props khi props thay đổi
+  useEffect(() => {
+    setCompatibilities(allCompatibilities);
+  }, [allCompatibilities]);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await compatibilityApi.getAll().catch(() => []);
+      setCompatibilities(data);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const filtered = allCompatibilities.filter(c =>
+    (c.productName || products.find(p => p.id === c.productId)?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleOpenAdd = () => {
+    setFormData({ productId: '', deviceId: '', note: '' });
+    setEditingItem(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (item: ApiProductCompatibility) => {
+    setEditingItem(item);
+    setFormData({
+      productId: item.productId || '',
+      deviceId: item.deviceId || '',
+      note: item.note || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.productId || !formData.deviceId) {
+      toast({ title: "Lỗi", description: "Vui lòng chọn sản phẩm và thiết bị", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      if (editingItem) {
+        await compatibilityApi.update(editingItem.id, {
+          productId: formData.productId,
+          deviceId: formData.deviceId,
+          note: formData.note
+        });
+        toast({ title: "Thành công", description: "Đã cập nhật" });
+      } else {
+        await compatibilityApi.create({
+          productId: formData.productId,
+          deviceId: formData.deviceId,
+          note: formData.note
+        });
+        toast({ title: "Thành công", description: "Đã thêm mới" });
+      }
+      setIsDialogOpen(false);
+      await loadData();
+    } catch (err: any) {
+      toast({ title: "Lỗi", description: err?.message || "Không thể lưu", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Xóa bản ghi này?")) return;
+    try {
+      await compatibilityApi.delete(id);
+      toast({ title: "Thành công", description: "Đã xóa" });
+      await loadData();
+    } catch {
+      toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Tìm kiếm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filtered.length} bản ghi</span>
+          <Button onClick={handleOpenAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sản phẩm</TableHead>
+                <TableHead>Thiết bị</TableHead>
+                <TableHead>Ghi chú</TableHead>
+                <TableHead className="text-right w-[100px]">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.productName || products.find(p => p.id === item.productId)?.name || '-'}</TableCell>
+                  <TableCell>{item.deviceName || devices.find(d => d.id === item.deviceId)?.name || '-'}</TableCell>
+                  <TableCell className="text-muted-foreground">{item.note || '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Không có dữ liệu</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Sửa tương thích" : "Thêm tương thích"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Sản phẩm *</Label>
+              <Select value={formData.productId} onValueChange={(v) => setFormData({ ...formData, productId: v })}>
+                <SelectTrigger><SelectValue placeholder="Chọn sản phẩm..." /></SelectTrigger>
+                <SelectContent>
+                  {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Thiết bị *</Label>
+              <Select value={formData.deviceId} onValueChange={(v) => setFormData({ ...formData, deviceId: v })}>
+                <SelectTrigger><SelectValue placeholder="Chọn thiết bị..." /></SelectTrigger>
+                <SelectContent>
+                  {devices.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Ghi chú</Label>
+              <Input value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} placeholder="VD: Fit hoàn hảo, Hỗ trợ sạc nhanh..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingItem ? "Cập nhật" : "Thêm mới"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ======================================
+// ProductAttributes Tab (with dynamic product/attribute options)
+// ======================================
+function ProductAttributesTab({
+  products,
+  attributes,
+  allAttributes,
+}: {
+  products: ApiProduct[];
+  attributes: ApiAttribute[];
+  allAttributes: ApiProductAttribute[];
+}) {
+  const [productAttributes, setProductAttributes] = useState<ApiProductAttribute[]>(allAttributes);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ApiProductAttribute | null>(null);
+  const [formData, setFormData] = useState({ productId: '', attributeId: '', value: '' });
+
+  // Sync với props khi props thay đổi
+  useEffect(() => {
+    setProductAttributes(allAttributes);
+  }, [allAttributes]);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await productAttributeApi.getAll().catch(() => []);
+      setProductAttributes(data);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const filtered = productAttributes.filter(a =>
+    (a.value || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (a.productName || products.find(p => p.id === a.productId)?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleOpenAdd = () => {
+    setFormData({ productId: '', attributeId: '', value: '' });
+    setEditingItem(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (item: ApiProductAttribute) => {
+    setEditingItem(item);
+    setFormData({
+      productId: item.productId || '',
+      attributeId: item.attributeId || '',
+      value: item.value || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.productId || !formData.attributeId || !formData.value) {
+      toast({ title: "Lỗi", description: "Vui lòng điền đầy đủ thông tin", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      if (editingItem) {
+        await productAttributeApi.update(editingItem.id, {
+          productId: formData.productId,
+          attributeId: formData.attributeId,
+          value: formData.value
+        });
+        toast({ title: "Thành công", description: "Đã cập nhật" });
+      } else {
+        await productAttributeApi.create({
+          productId: formData.productId,
+          attributeId: formData.attributeId,
+          value: formData.value
+        });
+        toast({ title: "Thành công", description: "Đã thêm mới" });
+      }
+      setIsDialogOpen(false);
+      await loadData();
+    } catch (err: any) {
+      toast({ title: "Lỗi", description: err?.message || "Không thể lưu", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Xóa bản ghi này?")) return;
+    try {
+      await productAttributeApi.delete(id);
+      toast({ title: "Thành công", description: "Đã xóa" });
+      await loadData();
+    } catch {
+      toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Tìm kiếm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filtered.length} bản ghi</span>
+          <Button onClick={handleOpenAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sản phẩm</TableHead>
+                <TableHead>Thuộc tính</TableHead>
+                <TableHead>Giá trị</TableHead>
+                <TableHead className="text-right w-[100px]">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.productName || products.find(p => p.id === item.productId)?.name || '-'}</TableCell>
+                  <TableCell>{item.attributeName || attributes.find(a => a.id === item.attributeId)?.name || '-'}</TableCell>
+                  <TableCell className="text-muted-foreground">{item.value || '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Không có dữ liệu</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Sửa thuộc tính SP" : "Thêm thuộc tính SP"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Sản phẩm *</Label>
+              <Select value={formData.productId} onValueChange={(v) => setFormData({ ...formData, productId: v })}>
+                <SelectTrigger><SelectValue placeholder="Chọn sản phẩm..." /></SelectTrigger>
+                <SelectContent>
+                  {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Thuộc tính *</Label>
+              <Select value={formData.attributeId} onValueChange={(v) => setFormData({ ...formData, attributeId: v })}>
+                <SelectTrigger><SelectValue placeholder="Chọn thuộc tính..." /></SelectTrigger>
+                <SelectContent>
+                  {attributes.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Giá trị *</Label>
+              <Input value={formData.value} onChange={(e) => setFormData({ ...formData, value: e.target.value })} placeholder="VD: 8GB, Silicone, 6.7 inch..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingItem ? "Cập nhật" : "Thêm mới"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ======================================
 // Generic CRUD Table Component
 // ======================================
 interface CrudColumn<T> {
@@ -751,10 +1365,7 @@ function ProductsTab({
             {/* Variants */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Palette className="h-4 w-4 text-primary" />
-                  <Label className="font-semibold">Biến thể</Label>
-                </div>
+                <Label className="font-semibold">Biến thể</Label>
                 <Button type="button" variant="outline" size="sm" onClick={() => setColorVariants([...colorVariants, { id: `temp_${Date.now()}`, name: '', colorCode: '#000000', price: formData.price, image: '', stockQuantity: 10, size: 'Default' }])}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
                 </Button>
@@ -795,12 +1406,11 @@ function ProductsTab({
                           {isExisting && (
                             <Button
                               variant={v._saved ? "outline" : "default"}
-                              size="icon"
-                              className="h-8 w-8 flex-shrink-0"
+                              size="sm"
+                              className="flex-shrink-0"
                               onClick={() => handleUpdateVariant(v)}
-                              title="Lưu biến thể"
                             >
-                              <Save className="h-3.5 w-3.5" />
+                              Lưu
                             </Button>
                           )}
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
@@ -848,10 +1458,7 @@ function ProductsTab({
             {/* Attributes */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
-                  <Label className="font-semibold">Thuộc tính kỹ thuật</Label>
-                </div>
+                <Label className="font-semibold">Thuộc tính kỹ thuật</Label>
                 <Button type="button" variant="outline" size="sm" onClick={() => setEditAttributes([...editAttributes, { id: `temp_${Date.now()}`, attributeId: '', value: '' }])}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
                 </Button>
@@ -873,8 +1480,8 @@ function ProductsTab({
                         <Input className="flex-1" placeholder="Giá trị (VD: 8GB, Silicone, v.v...)" value={a.value} onChange={e => setEditAttributes(editAttributes.map(ea => ea.id === a.id ? { ...ea, value: e.target.value, _saved: false } : ea))} />
                         
                         {isExisting && (
-                          <Button variant={a._saved ? "outline" : "default"} size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleUpdateAttribute(a)} title="Lưu">
-                            <Save className="h-3.5 w-3.5" />
+                          <Button variant={a._saved ? "outline" : "default"} size="sm" className="flex-shrink-0" onClick={() => handleUpdateAttribute(a)}>
+                            Lưu
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
@@ -897,10 +1504,7 @@ function ProductsTab({
             {/* Compatibilities */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
-                  <Label className="font-semibold">Tương thích thiết bị</Label>
-                </div>
+                <Label className="font-semibold">Tương thích thiết bị</Label>
                 <Button type="button" variant="outline" size="sm" onClick={() => setEditCompatibilities([...editCompatibilities, { id: `temp_${Date.now()}`, deviceId: '', note: '' }])}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Thêm
                 </Button>
@@ -922,8 +1526,8 @@ function ProductsTab({
                         <Input className="flex-1" placeholder="Ghi chú (VD: Fit hoàn hảo, Hỗ trợ sạc nhanh...)" value={c.note || ''} onChange={e => setEditCompatibilities(editCompatibilities.map(ec => ec.id === c.id ? { ...ec, note: e.target.value, _saved: false } : ec))} />
                         
                         {isExisting && (
-                          <Button variant={c._saved ? "outline" : "default"} size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleUpdateCompatibility(c)} title="Lưu">
-                            <Save className="h-3.5 w-3.5" />
+                          <Button variant={c._saved ? "outline" : "default"} size="sm" className="flex-shrink-0" onClick={() => handleUpdateCompatibility(c)}>
+                            Lưu
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
@@ -995,28 +1599,9 @@ function ProductsTab({
                 <p className="mt-1 text-sm">{detailProduct.description || 'Chưa có mô tả'}</p>
               </div>
 
-              {/* IDs */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Product ID</Label>
-                  <p className="font-mono text-xs break-all">{detailProduct.id}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Brand ID</Label>
-                  <p className="font-mono text-xs break-all">{detailProduct.brandId}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Category ID</Label>
-                  <p className="font-mono text-xs break-all">{detailProduct.categoryId}</p>
-                </div>
-              </div>
-
               {/* Variants */}
               <div className="border-t pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Palette className="h-4 w-4 text-primary" />
-                  <Label className="font-semibold">Biến thể ({detailVariants.length})</Label>
-                </div>
+                <Label className="font-semibold mb-3 block">Biến thể ({detailVariants.length})</Label>
                 {detailVariants.length > 0 ? (
                   <div className="space-y-3">
                     {detailVariants.map(v => (
@@ -1052,10 +1637,7 @@ function ProductsTab({
               <div className="grid grid-cols-2 gap-6 border-t pt-4">
                 {/* Attributes */}
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Check className="h-4 w-4 text-primary" />
-                    <Label className="font-semibold">Thuộc tính kỹ thuật</Label>
-                  </div>
+                  <Label className="font-semibold mb-3 block">Thuộc tính kỹ thuật</Label>
                   {detailAttributes.length > 0 ? (
                     <div className="space-y-2">
                       {detailAttributes.map(a => {
@@ -1075,10 +1657,7 @@ function ProductsTab({
 
                 {/* Compatibilities */}
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Check className="h-4 w-4 text-primary" />
-                    <Label className="font-semibold">Tương thích thiết bị</Label>
-                  </div>
+                  <Label className="font-semibold mb-3 block">Tương thích thiết bị</Label>
                   {detailCompatibilities.length > 0 ? (
                     <div className="space-y-2">
                       {detailCompatibilities.map(c => {
@@ -1119,18 +1698,22 @@ const AdminProducts = () => {
   const [devices, setDevices] = useState<ApiDevice[]>([]);
   const [attributes, setAttributes] = useState<ApiAttribute[]>([]);
   const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [compatibilities, setCompatibilities] = useState<ApiProductCompatibility[]>([]);
+  const [productAttributes, setProductAttributes] = useState<ApiProductAttribute[]>([]);
 
   // Fetch reference data for FK dropdowns
   useEffect(() => {
     const load = async () => {
-      const [b, c, d, a, p] = await Promise.all([
+      const [b, c, d, a, p, comp, prodAttr] = await Promise.all([
         brandService.getAll().catch(() => []),
         categoryService.getAll().catch(() => []),
         deviceService.getAll().catch(() => []),
         attributeService.getAll().catch(() => []),
         productApi.getAll().catch(() => []),
+        compatibilityApi.getAll().catch(() => []),
+        productAttributeApi.getAll().catch(() => []),
       ]);
-      setBrands(b); setCategories(c); setDevices(d); setAttributes(a); setProducts(p);
+      setBrands(b); setCategories(c); setDevices(d); setAttributes(a); setProducts(p); setCompatibilities(comp); setProductAttributes(prodAttr);
     };
     load();
   }, []);
@@ -1197,30 +1780,7 @@ const AdminProducts = () => {
         <TabsContent value="categories">
           <Card>
             <CardContent className="pt-6">
-              <GenericCrudTab<ApiCategory>
-                title="Danh mục"
-                searchField="name"
-                columns={[
-                  { key: 'name', label: 'Tên' },
-                  { key: 'slug', label: 'Slug' },
-                  { key: 'parentName', label: 'Danh mục cha', render: (c) => c.parentName || '-' },
-                ]}
-                fields={[
-                  { key: 'name', label: 'Tên danh mục', type: 'text', required: true },
-                  { key: 'slug', label: 'Slug', type: 'text', required: true, placeholder: 'vd: op-lung' },
-                  {
-                    key: 'parentId', label: 'Danh mục cha', type: 'select', options: [
-                      { value: '__none__', label: '-- Không --' },
-                      ...categories.map(c => ({ value: c.id, label: c.name })),
-                    ]
-                  },
-                ]}
-                fetchAll={() => categoryService.getAll()}
-                onCreate={(data) => categoryService.create({ ...data, parentId: data.parentId === '__none__' ? null : data.parentId || null })}
-                onUpdate={(id, data) => categoryService.update(id, { ...data, parentId: data.parentId === '__none__' ? null : data.parentId || null })}
-                onDelete={(id) => categoryService.delete(id)}
-                getFormDefaults={() => ({ name: '', slug: '', parentId: '__none__' })}
-              />
+              <CategoriesTab />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1279,24 +1839,10 @@ const AdminProducts = () => {
         <TabsContent value="compatibility">
           <Card>
             <CardContent className="pt-6">
-              <GenericCrudTab<ApiProductCompatibility>
-                title="Tương thích"
-                searchField="productName"
-                columns={[
-                  { key: 'productName', label: 'Sản phẩm', render: (c) => c.productName || products.find(p => p.id === c.productId)?.name || c.productId.slice(0, 8) },
-                  { key: 'deviceName', label: 'Thiết bị', render: (c) => c.deviceName || devices.find(d => d.id === c.deviceId)?.name || c.deviceId.slice(0, 8) },
-                  { key: 'note', label: 'Ghi chú' },
-                ]}
-                fields={[
-                  { key: 'productId', label: 'Sản phẩm', type: 'select', required: true, options: products.map(p => ({ value: p.id, label: p.name })) },
-                  { key: 'deviceId', label: 'Thiết bị', type: 'select', required: true, options: devices.map(d => ({ value: d.id, label: d.name })) },
-                  { key: 'note', label: 'Ghi chú', type: 'text' },
-                ]}
-                fetchAll={() => compatibilityApi.getAll()}
-                onCreate={(data) => compatibilityApi.create(data)}
-                onUpdate={(id, data) => compatibilityApi.update(id, data)}
-                onDelete={(id) => compatibilityApi.delete(id)}
-                getFormDefaults={() => ({ productId: '', deviceId: '', note: '' })}
+              <ProductCompatibilityTab
+                products={products}
+                devices={devices}
+                allCompatibilities={compatibilities}
               />
             </CardContent>
           </Card>
@@ -1306,24 +1852,10 @@ const AdminProducts = () => {
         <TabsContent value="prodAttributes">
           <Card>
             <CardContent className="pt-6">
-              <GenericCrudTab<ApiProductAttribute>
-                title="Thuộc tính SP"
-                searchField="value"
-                columns={[
-                  { key: 'productName', label: 'Sản phẩm', render: (a) => a.productName || products.find(p => p.id === a.productId)?.name || a.productId.slice(0, 8) },
-                  { key: 'attributeName', label: 'Thuộc tính', render: (a) => a.attributeName || attributes.find(at => at.id === a.attributeId)?.name || a.attributeId.slice(0, 8) },
-                  { key: 'value', label: 'Giá trị' },
-                ]}
-                fields={[
-                  { key: 'productId', label: 'Sản phẩm', type: 'select', required: true, options: products.map(p => ({ value: p.id, label: p.name })) },
-                  { key: 'attributeId', label: 'Thuộc tính', type: 'select', required: true, options: attributes.map(a => ({ value: a.id, label: a.name })) },
-                  { key: 'value', label: 'Giá trị', type: 'text', required: true },
-                ]}
-                fetchAll={() => productAttributeApi.getAll()}
-                onCreate={(data) => productAttributeApi.create(data)}
-                onUpdate={(id, data) => productAttributeApi.update(id, data)}
-                onDelete={(id) => productAttributeApi.delete(id)}
-                getFormDefaults={() => ({ productId: '', attributeId: '', value: '' })}
+              <ProductAttributesTab
+                products={products}
+                attributes={attributes}
+                allAttributes={productAttributes}
               />
             </CardContent>
           </Card>

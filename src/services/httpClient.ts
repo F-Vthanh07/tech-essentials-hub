@@ -1,7 +1,7 @@
 
-// const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '';
-export const API_BASE_URL = "https://localhost:7240";
-console.debug('[httpClient] base URL =', API_BASE_URL || '(relative)');
+// Use environment variable if available, otherwise fallback to deployed backend
+const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'https://accessoriesshop.onrender.com';
+console.debug('[httpClient] base URL =', BASE_URL || '(relative)');
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: any;

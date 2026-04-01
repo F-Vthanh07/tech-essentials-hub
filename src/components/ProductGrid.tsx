@@ -263,34 +263,39 @@ const ProductGrid = ({ onAddToCart, featuredMode = false }: ProductGridProps) =>
                 </div>
 
                 {/* Empty state */}
-                {filteredProducts.length === 0 && (
+                {filteredProducts.length === 0 && !isLoading && (
                   <div className="text-center py-16">
                     <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
                       <svg className="w-10 h-10 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                       </svg>
                     </div>
                     <p className="text-muted-foreground text-lg mb-2">
-                      {searchQuery
-                        ? `Không tìm thấy sản phẩm cho "${searchQuery}"`
-                        : "Không tìm thấy sản phẩm phù hợp"}
+                      {searchQuery || filters.brands.length > 0 || filters.categories.length > 0 || filters.devices.length > 0
+                        ? `Không tìm thấy sản phẩm nào`
+                        : "Chưa có sản phẩm nào"}
                     </p>
                     <p className="text-muted-foreground text-sm mb-4">
-                      Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc
+                      {searchQuery || filters.brands.length > 0 || filters.categories.length > 0 || filters.devices.length > 0
+                        ? "Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc"
+                        : "Vui lòng quay lại sau"}
                     </p>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setFilters({
-                          brands: [],
-                          categories: [],
-                          devices: [],
-                          priceRange: [0, 10000000],
-                        })
-                      }
-                    >
-                      Xóa bộ lọc
-                    </Button>
+                    {(searchQuery || filters.brands.length > 0 || filters.categories.length > 0 || filters.devices.length > 0) && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSearchQuery("");
+                          setFilters({
+                            brands: [],
+                            categories: [],
+                            devices: [],
+                            priceRange: [0, 10000000],
+                          });
+                        }}
+                      >
+                        Xóa bộ lọc
+                      </Button>
+                    )}
                   </div>
                 )}
 

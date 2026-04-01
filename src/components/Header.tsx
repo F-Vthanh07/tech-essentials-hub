@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,18 @@ const Header = () => {
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Helper to check if a path is active
+  const isActive = (path: string) => {
+    if (path === '/') {
+      return location.pathname === '/' && !location.search;
+    }
+    if (path === '/products') {
+      return location.pathname === '/products' || location.pathname === '/';
+    }
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   // Fetch categories from API
   useEffect(() => {
@@ -203,7 +215,7 @@ const Header = () => {
             <li>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-1 font-medium">
+                  <Button variant="ghost" className={`gap-1 font-medium ${isActive('/products') ? 'bg-primary/10 text-primary' : ''}`}>
                     Danh mục
                     <ChevronDown className="w-4 h-4" />
                   </Button>
@@ -218,28 +230,28 @@ const Header = () => {
               </DropdownMenu>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium" onClick={() => navigate('/products')}>
+              <Button variant="ghost" className={`font-medium ${isActive('/products') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/products')}>
                 Tất cả sản phẩm
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium" onClick={() => navigate('/brands')}>
+              <Button variant="ghost" className={`font-medium ${isActive('/custom-case') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/custom-case')}>
+                Dịch vụ
+              </Button>
+            </li>
+            <li>
+              <Button variant="ghost" className={`font-medium ${isActive('/brands') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/brands')}>
                 Thương hiệu
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium" onClick={() => navigate('/tech-news')}>
+              <Button variant="ghost" className={`font-medium ${isActive('/tech-news') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/tech-news')}>
                 Bản tin công nghệ
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="font-medium" onClick={() => navigate('/support')}>
+              <Button variant="ghost" className={`font-medium ${isActive('/support') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/support')}>
                 Hỗ trợ
-              </Button>
-            </li>
-            <li>
-              <Button variant="ghost" className="font-medium text-purple-500" onClick={() => navigate('/custom-case')}>
-                ✨ Custom ốp lưng
               </Button>
             </li>
           </ul>
@@ -269,28 +281,28 @@ const Header = () => {
                 </li>
               ))}
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/products'); setIsMenuOpen(false); }}>
+                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/products') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/products'); setIsMenuOpen(false); }}>
                   Tất cả sản phẩm
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/brands'); setIsMenuOpen(false); }}>
+                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/custom-case') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
+                  Dịch vụ
+                </Button>
+              </li>
+              <li>
+                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/brands') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/brands'); setIsMenuOpen(false); }}>
                   Thương hiệu
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/tech-news'); setIsMenuOpen(false); }}>
+                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/tech-news') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/tech-news'); setIsMenuOpen(false); }}>
                   Bản tin công nghệ
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start font-medium" onClick={() => { navigate('/support'); setIsMenuOpen(false); }}>
+                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/support') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/support'); setIsMenuOpen(false); }}>
                   Hỗ trợ
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" className="w-full justify-start font-medium text-purple-500" onClick={() => { navigate('/custom-case'); setIsMenuOpen(false); }}>
-                  ✨ Custom ốp lưng
                 </Button>
               </li>
             </ul>
