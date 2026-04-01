@@ -267,7 +267,8 @@ const StaffCustomOrders = () => {
                             {order.textContent || "Nội dung custom"}
                           </div>
                           <div className="text-muted-foreground text-xs">
-                            SP: {order.productId || "N/A"} • Màu:{" "}
+                            Biến thể:{" "}
+                            {order.variantId || order.productBaseId || "N/A"} • Màu:{" "}
                             {order.color || "N/A"} • Chất liệu:{" "}
                             {order.material || "N/A"}
                           </div>
@@ -378,8 +379,10 @@ const StaffCustomOrders = () => {
                   Chi tiết thiết kế
                 </h4>
                 <p className="text-sm mb-2">
-                  Sản phẩm:{" "}
-                  <span className="font-mono">{selectedOrder.productId || "N/A"}</span>
+                  Biến thể (variantId):{" "}
+                  <span className="font-mono">
+                    {selectedOrder.variantId || selectedOrder.productBaseId || "N/A"}
+                  </span>
                 </p>
                 <p className="text-sm mb-2">
                   Màu: <span className="font-medium">{selectedOrder.color}</span> •

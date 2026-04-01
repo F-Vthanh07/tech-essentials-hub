@@ -154,4 +154,9 @@ export const productService = {
       }
     }
   },
+
+  /** Tất cả biến thể (SKU) — dùng cho dropdown chọn mẫu ốp / đơn custom. */
+  async getAllVariants(): Promise<ApiProductVariant[]> {
+    return variantApi.getAll();
+  },
 };

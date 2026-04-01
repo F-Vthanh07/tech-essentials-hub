@@ -29,15 +29,33 @@ async function request<T>(
   });
 
   if (!res.ok) {
-    // attempt to parse error message
-    let text: any;
+    const text = await res.text();
+    let message = res.statusText || `HTTP ${res.status}`;
     try {
-      text = await res.text();
-      const json = JSON.parse(text);
-      throw new Error(json.message || res.statusText);
+      const json = JSON.parse(text) as Record<string, unknown>;
+      if (typeof json.message === 'string' && json.message.trim()) {
+        message = json.message;
+      } else if (typeof json.title === 'string' && json.title.trim()) {
+        message = json.title;
+      } else if (json.errors && typeof json.errors === 'object') {
+        const parts: string[] = [];
+        for (const [key, val] of Object.entries(json.errors as Record<string, unknown>)) {
+          if (Array.isArray(val)) {
+            parts.push(...val.map((v) => `${key}: ${String(v)}`));
+          } else {
+            parts.push(`${key}: ${String(val)}`);
+          }
+        }
+        if (parts.length) message = parts.join('; ');
+      } else if (typeof json.detail === 'string' && json.detail.trim()) {
+        message = json.detail;
+      }
     } catch {
-      throw new Error(res.statusText);
+      if (text?.trim()) {
+        message = text.length > 400 ? `${text.slice(0, 400)}…` : text;
+      }
     }
+    throw new Error(message);
   }
 
   // assume JSON response by default

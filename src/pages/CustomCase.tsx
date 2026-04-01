@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -13,7 +13,7 @@ import { productService } from "@/services/ProductService";
 import { customProductService } from "@/services/CustomProductService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { Product } from "@/types/product";
+import { ApiProductVariant, Product } from "@/types/product";
 import { toast } from "sonner";
 
 // Phone models with specific designs
@@ -108,6 +108,45 @@ const phoneModels: Record<string, {
 };
 
 const defaultAvailableDevices = Object.keys(phoneModels);
+
+const FALLBACK_PRODUCT_IMAGE =
+  "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+
+function productFromVariant(v: ApiProductVariant): Product {
+  return {
+    id: v.id,
+    name: v.productName || v.name,
+    price: v.price,
+    image: v.imageUrl || FALLBACK_PRODUCT_IMAGE,
+    brand: "",
+    category: "",
+    device: v.size || "",
+    rating: 4.5,
+    reviewCount: 0,
+    variantId: v.id,
+  };
+}
+
+function formatVariantOptionLabel(v: ApiProductVariant): string {
+  const title = v.productName?.trim() || v.name;
+  const extras = [v.name !== title ? v.name : null, v.color, v.size].filter(
+    (part): part is string => Boolean(part && part !== title)
+  );
+  if (extras.length === 0) return title;
+  return `${title} — ${extras.join(" · ")}`;
+}
+
+/** Khớp cấu hình khung máy (camera/notch) từ tên SP / size trên variant. */
+function matchPhoneModelForVariant(v: ApiProductVariant | undefined) {
+  const defaultPhone = phoneModels["iPhone 16 Pro Max"];
+  if (!v) return defaultPhone;
+  const haystack = `${v.productName || ""} ${v.name || ""} ${v.size || ""}`.toLowerCase();
+  for (const device of defaultAvailableDevices) {
+    if (haystack.includes(device.toLowerCase())) return phoneModels[device];
+  }
+  if (v.size && phoneModels[v.size]) return phoneModels[v.size];
+  return defaultPhone;
+}
 
 const caseColors = [
   { id: "transparent", name: "Trong suốt", color: "bg-gray-100 border-2 border-dashed" },
@@ -294,37 +333,49 @@ const NotchModule = ({ style }: { style: string }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToCart } = useCart();
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedColor, setSelectedColor] = useState("transparent");
   const [selectedMaterial, setSelectedMaterial] = useState("soft");
-    const [products, setProducts] = useState<Product[]>([]);
-    const [isProductLoading, setIsProductLoading] = useState(false);
+  const [variants, setVariants] = useState<ApiProductVariant[]>([]);
+  const [isProductLoading, setIsProductLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [designElements, setDesignElements] = useState<DesignElement[]>([]);
   const [isSubmittingCustomOrder, setIsSubmittingCustomOrder] = useState(false);
-  const selectedProduct = products.find((p) => p.id === selectedProductId);
-  const selectedProductName = selectedProduct?.name ?? "";
-  const availableProductList = products.length > 0
-    ? products
-    : defaultAvailableDevices.map((name) => ({ id: name, name } as Product));
 
-    useEffect(() => {
-      const fetchProducts = async () => {
-        setIsProductLoading(true);
-        try {
-          const fetchedProducts = await productService.getAllProducts({ includeInactive: false });
-          if (fetchedProducts.length > 0) {
-            setProducts(fetchedProducts);
-          }
-        } catch (error) {
-          console.warn("Failed to fetch products for custom case page", error);
-        } finally {
-          setIsProductLoading(false);
-        }
-      };
+  const sortedVariants = useMemo(
+    () =>
+      [...variants].sort((a, b) => {
+        const an = (a.productName || a.name || "").localeCompare(b.productName || b.name || "");
+        if (an !== 0) return an;
+        return (a.name || "").localeCompare(b.name || "");
+      }),
+    [variants]
+  );
 
-      fetchProducts();
-    }, []);
+  const selectedVariant = useMemo(
+    () => sortedVariants.find((v) => v.id === selectedVariantId),
+    [sortedVariants, selectedVariantId]
+  );
+
+  const selectedProductName =
+    selectedVariant?.productName?.trim() || selectedVariant?.name?.trim() || "";
+
+  useEffect(() => {
+    const fetchVariants = async () => {
+      setIsProductLoading(true);
+      try {
+        const list = await productService.getAllVariants();
+        setVariants(Array.isArray(list) ? list : []);
+      } catch (error) {
+        console.warn("Failed to fetch variants for custom case page", error);
+        setVariants([]);
+      } finally {
+        setIsProductLoading(false);
+      }
+    };
+
+    fetchVariants();
+  }, []);
 
   const selectedMaterialData = caseMaterials.find(m => m.id === selectedMaterial);
   
@@ -342,9 +393,7 @@ const NotchModule = ({ style }: { style: string }) => {
   const discountedItemPrice = baseItemPrice * (1 - quantityDiscount / 100);
   const totalPrice = discountedItemPrice * quantity;
   
-  // Get current phone model config or default
-  const defaultPhone = phoneModels["iPhone 16 Pro Max"];
-  const currentPhone = selectedProductName ? phoneModels[selectedProductName] || defaultPhone : defaultPhone;
+  const currentPhone = matchPhoneModelForVariant(selectedVariant);
 
   const handleDesignChange = useCallback((elements: DesignElement[]) => {
     setDesignElements(elements);
@@ -365,7 +414,7 @@ const NotchModule = ({ style }: { style: string }) => {
       return null;
     }
 
-    if (!selectedProductId) {
+    if (!selectedVariantId || !selectedVariant) {
       toast.error("Vui lòng chọn sản phẩm");
       return null;
     }
@@ -383,13 +432,12 @@ const NotchModule = ({ style }: { style: string }) => {
 
     return {
       accountId: user.id,
-      productId: selectedProductId,
-      productBaseId: selectedProductId,
+      variantId: selectedVariantId,
       color: selectedColor,
       material: selectedMaterial,
       textContent,
       note: `Custom case for ${selectedProductName || "selected product"}`,
-      quantity,
+      quantity: Math.max(1, Math.floor(Number(quantity)) || 1),
       imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       designElements: designElements.length > 0 ? designElements : undefined,
       designSnapshot:
@@ -403,24 +451,24 @@ const NotchModule = ({ style }: { style: string }) => {
   };
 
   const buildCustomCartProduct = (customOrderId?: string): Product | null => {
-    if (!selectedProduct) return null;
+    if (!selectedVariant) return null;
 
+    const base = productFromVariant(selectedVariant);
     return {
-      ...selectedProduct,
-      // Use a distinct id so custom items do not merge with normal product items.
-      id: customOrderId ? `custom-${customOrderId}` : `custom-${selectedProduct.id}-${Date.now()}`,
-      name: `Custom - ${selectedProduct.name}`,
+      ...base,
+      id: customOrderId ? `custom-${customOrderId}` : `custom-${base.id}-${Date.now()}`,
+      name: `Custom - ${base.name}`,
       price: discountedItemPrice,
       image:
         designElements.find((element) => element.type === "image")?.content ||
-        selectedProduct.image,
+        base.image,
       description: `Custom case | Color: ${selectedColor} | Material: ${selectedMaterial}`,
-      variantId: selectedProduct.variantId || selectedProduct.id,
+      variantId: selectedVariantId,
     };
   };
 
   const handleReset = () => {
-    setSelectedProductId("");
+    setSelectedVariantId("");
     setSelectedColor("transparent");
     setSelectedMaterial("soft");
     setQuantity(1);
@@ -428,7 +476,7 @@ const NotchModule = ({ style }: { style: string }) => {
   };
 
   const handleAddToCart = async () => {
-    if (!selectedProductId) {
+    if (!selectedVariantId) {
       toast.error("Vui lòng chọn sản phẩm");
       return;
     }
@@ -436,11 +484,9 @@ const NotchModule = ({ style }: { style: string }) => {
     const payload = buildCustomOrderPayload();
     if (!payload) return;
 
-    console.log("[CustomCase] create custom order payload:", payload);
     setIsSubmittingCustomOrder(true);
     try {
       const createdCustomOrder = await customProductService.create(payload);
-      console.log("[CustomCase] create custom order response:", createdCustomOrder);
       const customCartProduct = buildCustomCartProduct(createdCustomOrder?.id);
       if (customCartProduct) {
         addToCart(customCartProduct, quantity);
@@ -459,7 +505,7 @@ const NotchModule = ({ style }: { style: string }) => {
   };
 
   const handleBuyNow = async () => {
-    if (!selectedProductId) {
+    if (!selectedVariantId) {
       toast.error("Vui lòng chọn sản phẩm");
       return;
     }
@@ -467,11 +513,9 @@ const NotchModule = ({ style }: { style: string }) => {
     const payload = buildCustomOrderPayload();
     if (!payload) return;
 
-    console.log("[CustomCase] create custom order payload:", payload);
     setIsSubmittingCustomOrder(true);
     try {
       const createdCustomOrder = await customProductService.create(payload);
-      console.log("[CustomCase] create custom order response:", createdCustomOrder);
       const customCartProduct = buildCustomCartProduct(createdCustomOrder?.id);
       if (customCartProduct) {
         addToCart(customCartProduct, quantity);
@@ -557,14 +601,26 @@ const NotchModule = ({ style }: { style: string }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                <Select
+                  value={selectedVariantId}
+                  onValueChange={setSelectedVariantId}
+                  disabled={isProductLoading || sortedVariants.length === 0}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder={isProductLoading ? "Đang tải danh sách sản phẩm..." : "Chọn sản phẩm của bạn"} />
+                    <SelectValue
+                      placeholder={
+                        isProductLoading
+                          ? "Đang tải danh sách biến thể..."
+                          : sortedVariants.length === 0
+                            ? "Không có biến thể (kiểm tra API)"
+                            : "Chọn biến thể / sản phẩm"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableProductList.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                    {sortedVariants.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {formatVariantOptionLabel(v)}
                       </SelectItem>
                     ))}
                   </SelectContent>
