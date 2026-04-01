@@ -39,15 +39,15 @@ import { useAuth } from "@/contexts/AuthContext";
 const getProductDetails = (product: Product) => {
   const galleryImages = product.colorVariants && product.colorVariants.length > 0
     ? product.colorVariants
-        .filter(v => v.image)
-        .map((variant) => variant.image)
-        .filter((img, idx, arr) => arr.indexOf(img) === idx) // unique
+      .filter(v => v.image)
+      .map((variant) => variant.image)
+      .filter((img, idx, arr) => arr.indexOf(img) === idx) // unique
     : [
-        product.image,
-        product.image.replace("w=400", "w=401"),
-        product.image.replace("w=400", "w=402"),
-        product.image.replace("w=400", "w=403"),
-      ];
+      product.image,
+      product.image.replace("w=400", "w=401"),
+      product.image.replace("w=400", "w=402"),
+      product.image.replace("w=400", "w=403"),
+    ];
 
   // If we only have one image, add some duplicates for gallery
   if (galleryImages.length < 2) {
@@ -333,8 +333,8 @@ const ProductDetail = () => {
       });
     } catch (err: any) {
       console.warn("add to cart failed", err);
-      const errMsg = typeof err.response?.data === 'string' 
-        ? err.response.data 
+      const errMsg = typeof err.response?.data === 'string'
+        ? err.response.data
         : err.response?.data?.message || err.message || "Không thể thêm vào giỏ hàng";
 
       toast({
@@ -387,8 +387,8 @@ const ProductDetail = () => {
       });
     } catch (err: any) {
       console.warn("add related product to cart failed", err);
-      const errMsg = typeof err.response?.data === 'string' 
-        ? err.response.data 
+      const errMsg = typeof err.response?.data === 'string'
+        ? err.response.data
         : err.response?.data?.message || err.message || "Không thể thêm vào giỏ hàng";
 
       toast({
@@ -469,11 +469,10 @@ const ProductDetail = () => {
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star
                       key={i}
-                      className={`w-5 h-5 ${
-                        i < Math.floor(product.rating)
+                      className={`w-5 h-5 ${i < Math.floor(product.rating)
                           ? "fill-amber-400 text-amber-400"
                           : "text-muted-foreground"
-                      }`}
+                        }`}
                     />
                   ))}
                 </div>
@@ -523,14 +522,14 @@ const ProductDetail = () => {
                         <div className="flex-1">
                           <p className="font-semibold text-red-600 dark:text-red-400">{promo.name}</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Giảm {promo.isPercentage ? `${promo.discountValue}%` : `${promo.discountValue.toLocaleString("vi-VN")}đ`} 
+                            Giảm {promo.isPercentage ? `${promo.discountValue}%` : `${promo.discountValue.toLocaleString("vi-VN")}đ`}
                             {" "}khi mua sản phẩm này
                           </p>
                           {promo.endDate && (
                             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                              ⏰ Hiệu lực đến: {new Date(promo.endDate).toLocaleDateString("vi-VN", { 
-                                day: "2-digit", 
-                                month: "2-digit", 
+                              ⏰ Hiệu lực đến: {new Date(promo.endDate).toLocaleDateString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
                                 year: "numeric",
                                 hour: "2-digit",
                                 minute: "2-digit"
@@ -558,32 +557,31 @@ const ProductDetail = () => {
                       <button
                         key={color.id}
                         onClick={() => setSelectedColor(color)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
-                          selectedColor?.id === color.id
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${selectedColor?.id === color.id
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-primary/50"
-                        }`}
+                          }`}
                       >
-                        <div 
+                        <div
                           className="w-6 h-6 rounded-full border border-border"
                           style={{ backgroundColor: color.colorCode }}
                         />
                         <div className="text-left">
                           <p className="text-sm font-medium">{color.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
-                          {color.discount ? ` (-${color.discount}%)` : ''}
-                          {bestPromotion && (
-                            <span className="text-primary ml-1">
-                              → {formatPrice(calculatePromotionPrice(color.price))}
-                            </span>
-                          )}
-                        </p>
-                        {color.stockQuantity !== undefined && (
-                          <p className={`text-[10px] mt-0.5 ${color.stockQuantity > 0 ? 'text-green-600' : 'text-destructive font-semibold'}`}>
-                            {color.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng'}
+                          <p className="text-xs text-muted-foreground">
+                            {formatPrice(color.discount ? color.price * (1 - color.discount / 100) : color.price)}
+                            {color.discount ? ` (-${color.discount}%)` : ''}
+                            {bestPromotion && (
+                              <span className="text-primary ml-1">
+                                → {formatPrice(calculatePromotionPrice(color.price))}
+                              </span>
+                            )}
                           </p>
-                        )}
+                          {color.stockQuantity !== undefined && (
+                            <p className={`text-[10px] mt-0.5 ${color.stockQuantity > 0 ? 'text-green-600' : 'text-destructive font-semibold'}`}>
+                              {color.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng'}
+                            </p>
+                          )}
                         </div>
                       </button>
                     ))}
@@ -621,7 +619,7 @@ const ProductDetail = () => {
                   <span className="text-muted-foreground">Giá sau ưu đãi cho các biến thể:</span>
                   {product.colorVariants?.slice(0, 3).map(cv => (
                     <span key={cv.id} className="font-bold underline decoration-primary/30">
-                      {formatPrice(cv.price * (bestPromotion.isPercentage ? (1 - bestPromotion.discountValue/100) : 1) - (bestPromotion.isPercentage? 0: bestPromotion.discountValue))}
+                      {formatPrice(cv.price * (bestPromotion.isPercentage ? (1 - bestPromotion.discountValue / 100) : 1) - (bestPromotion.isPercentage ? 0 : bestPromotion.discountValue))}
                     </span>
                   ))}
                   {(product.colorVariants?.length || 0) > 3 && <span className="text-muted-foreground">...</span>}
@@ -682,9 +680,8 @@ const ProductDetail = () => {
                   className={isWishlisted ? "text-primary border-primary" : ""}
                 >
                   <Heart
-                    className={`w-4 h-4 mr-2 ${
-                      isWishlisted ? "fill-primary" : ""
-                    }`}
+                    className={`w-4 h-4 mr-2 ${isWishlisted ? "fill-primary" : ""
+                      }`}
                   />
                   {isWishlisted ? "Đã yêu thích" : "Yêu thích"}
                 </Button>
@@ -830,11 +827,10 @@ const ProductDetail = () => {
                                 {Array.from({ length: 5 }).map((_, i) => (
                                   <Star
                                     key={i}
-                                    className={`w-4 h-4 ${
-                                      i < (r.star || 0)
+                                    className={`w-4 h-4 ${i < (r.star || 0)
                                         ? "text-amber-400 fill-amber-400"
                                         : "text-muted-foreground"
-                                    }`}
+                                      }`}
                                   />
                                 ))}
                               </div>
