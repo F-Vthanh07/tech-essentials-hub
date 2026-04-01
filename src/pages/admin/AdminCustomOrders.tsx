@@ -38,9 +38,7 @@ const AdminCustomOrders = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedOrder, setSelectedOrder] = useState<ApiCustomProduct | null>(
-    null
-  );
+  const [selectedOrder, setSelectedOrder] = useState<ApiCustomProduct | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [quotePrice, setQuotePrice] = useState<string>("");
   const [quoteDate, setQuoteDate] = useState<string>("");
@@ -97,13 +95,15 @@ const AdminCustomOrders = () => {
     } as ApiCustomProduct & { displayCode: string });
 
     setQuotePrice(order.price != null ? String(order.price) : "");
+
+    // Fix: dùng toISOString().slice(0,10) để lấy đúng YYYY-MM-DD
     setQuoteDate(
       order.estimatedDeliveryDate
-        ? order.estimatedDeliveryDate.slice(0, 10)
+        ? new Date(order.estimatedDeliveryDate).toISOString().slice(0, 10)
         : ""
     );
-    setQuoteNote(order.note || "");
 
+    setQuoteNote(order.note || "");
     setIsDetailOpen(true);
   };
 
@@ -120,11 +120,16 @@ const AdminCustomOrders = () => {
       return;
     }
 
+    // Fix: convert "2026-04-15" → full ISO string "2026-04-15T00:00:00.000Z"
+    const deliveryDateISO = quoteDate
+      ? new Date(quoteDate + "T00:00:00.000Z").toISOString()
+      : new Date().toISOString();
+
     try {
       setIsSubmittingQuote(true);
       await customProductService.updateQuote(selectedOrder.id, {
         price: priceNumber,
-        estimatedDeliveryDate: quoteDate || new Date().toISOString(),
+        estimatedDeliveryDate: deliveryDateISO,
         note: quoteNote,
       });
 
@@ -134,7 +139,7 @@ const AdminCustomOrders = () => {
             ? {
                 ...o,
                 price: priceNumber,
-                estimatedDeliveryDate: quoteDate || new Date().toISOString(),
+                estimatedDeliveryDate: deliveryDateISO,
                 note: quoteNote,
               }
             : o
@@ -146,7 +151,7 @@ const AdminCustomOrders = () => {
           ? {
               ...prev,
               price: priceNumber,
-              estimatedDeliveryDate: quoteDate || new Date().toISOString(),
+              estimatedDeliveryDate: deliveryDateISO,
               note: quoteNote,
             }
           : prev
@@ -243,15 +248,10 @@ const AdminCustomOrders = () => {
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order, index) => {
-                  const displayCode = `CUST-${String(index + 1).padStart(
-                    3,
-                    "0"
-                  )}`;
+                  const displayCode = `CUST-${String(index + 1).padStart(3, "0")}`;
                   return (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">
-                        {displayCode}
-                      </TableCell>
+                      <TableCell className="font-medium">{displayCode}</TableCell>
                       <TableCell>{order.customerName || "N/A"}</TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -281,9 +281,7 @@ const AdminCustomOrders = () => {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusBadgeClass(
-                            order.status
-                          )}`}
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusBadgeClass(order.status)}`}
                         >
                           {order.status || "N/A"}
                         </span>
@@ -336,9 +334,7 @@ const AdminCustomOrders = () => {
                   <h4 className="font-medium text-muted-foreground mb-2">
                     Thông tin khách hàng
                   </h4>
-                  <p className="font-medium">
-                    {selectedOrder.customerName || "N/A"}
-                  </p>
+                  <p className="font-medium">{selectedOrder.customerName || "N/A"}</p>
                   <p className="text-sm text-muted-foreground">
                     Email: {selectedOrder.customerEmail || "N/A"}
                   </p>
@@ -352,24 +348,18 @@ const AdminCustomOrders = () => {
                   </h4>
                   <p className="text-sm">
                     Mã ID:{" "}
-                    <span className="font-mono break-all">
-                      {selectedOrder.id}
-                    </span>
+                    <span className="font-mono break-all">{selectedOrder.id}</span>
                   </p>
                   <p className="text-sm">
                     Ngày tạo:{" "}
                     {selectedOrder.createdAt
-                      ? new Date(
-                          selectedOrder.createdAt
-                        ).toLocaleString("vi-VN")
+                      ? new Date(selectedOrder.createdAt).toLocaleString("vi-VN")
                       : "N/A"}
                   </p>
                   <p className="text-sm">
                     Trạng thái:{" "}
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusBadgeClass(
-                        selectedOrder.status
-                      )}`}
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusBadgeClass(selectedOrder.status)}`}
                     >
                       {selectedOrder.status || "N/A"}
                     </span>
@@ -377,9 +367,7 @@ const AdminCustomOrders = () => {
                   {typeof selectedOrder.quantity === "number" && (
                     <p className="text-sm">
                       Số lượng:{" "}
-                      <span className="font-medium">
-                        {selectedOrder.quantity}
-                      </span>
+                      <span className="font-medium">{selectedOrder.quantity}</span>
                     </p>
                   )}
                 </div>
@@ -391,23 +379,17 @@ const AdminCustomOrders = () => {
                 </h4>
                 <p className="text-sm mb-2">
                   Sản phẩm:{" "}
-                  <span className="font-mono">
-                    {selectedOrder.productId || "N/A"}
-                  </span>
+                  <span className="font-mono">{selectedOrder.productId || "N/A"}</span>
                 </p>
                 <p className="text-sm mb-2">
-                  Màu: <span className="font-medium">{selectedOrder.color}</span>{" "}
-                  • Chất liệu:{" "}
-                  <span className="font-medium">
-                    {selectedOrder.material}
-                  </span>
+                  Màu: <span className="font-medium">{selectedOrder.color}</span> •
+                  Chất liệu:{" "}
+                  <span className="font-medium">{selectedOrder.material}</span>
                 </p>
                 {selectedOrder.textContent && (
                   <p className="text-sm">
                     Nội dung:{" "}
-                    <span className="font-medium">
-                      {selectedOrder.textContent}
-                    </span>
+                    <span className="font-medium">{selectedOrder.textContent}</span>
                   </p>
                 )}
                 {selectedOrder.note && (
@@ -432,29 +414,31 @@ const AdminCustomOrders = () => {
                 </div>
               )}
 
-              {(Array.isArray(selectedOrder.files) && selectedOrder.files.length > 0) && (
-                <div>
-                  <h4 className="font-medium text-muted-foreground mb-2">
-                    Hình ảnh đính kèm
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {selectedOrder.files.map((file) => (
-                      <div
-                        key={file.id}
-                        className="border rounded-lg overflow-hidden bg-muted"
-                      >
-                        <img
-                          src={file.fileUrl}
-                          alt={file.fileName || "Custom image"}
-                          className="w-full h-32 object-cover"
-                        />
-                      </div>
-                    ))}
+              {Array.isArray(selectedOrder.files) &&
+                selectedOrder.files.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-muted-foreground mb-2">
+                      Hình ảnh đính kèm
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {selectedOrder.files.map((file) => (
+                        <div
+                          key={file.id}
+                          className="border rounded-lg overflow-hidden bg-muted"
+                        >
+                          <img
+                            src={file.fileUrl}
+                            alt={file.fileName || "Custom image"}
+                            className="w-full h-32 object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {(!Array.isArray(selectedOrder.files) || selectedOrder.files.length === 0) &&
+              {(!Array.isArray(selectedOrder.files) ||
+                selectedOrder.files.length === 0) &&
                 Array.isArray(selectedOrder.imageUrls) &&
                 selectedOrder.imageUrls.length > 0 && (
                   <div>
@@ -565,4 +549,3 @@ const AdminCustomOrders = () => {
 };
 
 export default AdminCustomOrders;
-

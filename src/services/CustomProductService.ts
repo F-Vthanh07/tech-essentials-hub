@@ -19,7 +19,7 @@ export interface CreateCustomProductRequest {
 
 export interface UpdateCustomProductQuoteRequest {
   price: number;
-  estimatedDeliveryDate: string;
+  estimatedDeliveryDate: string; // ISO 8601 full string: "2026-04-15T00:00:00.000Z"
   note: string;
 }
 
@@ -58,12 +58,28 @@ export interface ApiCustomProduct {
   [key: string]: any;
 }
 
+/**
+ * Chuyển date string từ input[type="date"] ("2026-04-15")
+ * sang ISO 8601 full string ("2026-04-15T00:00:00.000Z")
+ * để backend C# DateTime parse đúng.
+ */
+export const toISODateString = (dateStr: string): string => {
+  if (!dateStr) return new Date().toISOString();
+  // Nếu đã là ISO full string rồi thì giữ nguyên
+  if (dateStr.includes('T')) return dateStr;
+  return new Date(dateStr + 'T00:00:00.000Z').toISOString();
+};
+
 export const customProductService = {
   create: (data: CreateCustomProductRequest) =>
     httpClient.post<ApiCustomProduct>('/api/custom-order/create', data),
 
   updateQuote: (id: string, data: UpdateCustomProductQuoteRequest) =>
-    httpClient.post<ApiCustomProduct>(`/api/custom-order/${id}/quote`, data),
+    httpClient.post<ApiCustomProduct>(`/api/custom-order/${id}/quote`, {
+      ...data,
+      // Đảm bảo luôn gửi đúng format ISO dù caller truyền gì
+      estimatedDeliveryDate: toISODateString(data.estimatedDeliveryDate),
+    }),
 
   updateStatus: (id: string, data: UpdateCustomProductStatusRequest) =>
     httpClient.post<ApiCustomProduct>(`/api/custom-order/${id}/status`, data),
