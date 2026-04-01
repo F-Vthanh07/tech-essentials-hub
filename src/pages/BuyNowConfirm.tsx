@@ -216,7 +216,7 @@ const BuyNowConfirm = () => {
         addressId: selectedAddressId,
         orderItems: items.map((item) => ({
           variantId: item.variantId || "",
-          quantity: item.quantity,
+          quantity: Math.max(1, Math.floor(Number(item.quantity)) || 1),
         })),
       };
 

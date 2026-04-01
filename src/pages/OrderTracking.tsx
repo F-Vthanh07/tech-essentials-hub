@@ -35,6 +35,7 @@ import {
   customProductService,
   ApiCustomProduct,
 } from "@/services/CustomProductService";
+import { getRememberedCustomOrderVariantId } from "@/lib/customOrderVariantStorage";
 import { toast } from "@/hooks/use-toast";
 
 // ─────────────────────────────────────────────
@@ -185,15 +186,31 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
       return;
     }
 
+    const variantIdForShopOrder =
+      getRememberedCustomOrderVariantId(customOrder.id) ||
+      customOrder.variantId?.trim() ||
+      customOrder.productBaseId?.trim() ||
+      "";
+
+    if (!variantIdForShopOrder) {
+      toast({
+        title: "Không thanh toán được",
+        description:
+          "Đơn thiếu mã biến thể (variantId). Hãy tạo đơn custom mới từ trang thiết kế hoặc liên hệ shop.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setPayingId(customOrder.id);
 
     const checkoutItem = {
-      id: customOrder.id,
+      id: variantIdForShopOrder,
       name: `Ốp lưng Custom #${String(customOrder.id).slice(-6).toUpperCase()}`,
       price: quotedPrice,
       image: customOrder.designSnapshot || "",
       quantity: customOrder.quantity ?? 1,
-      variantId: customOrder.id,
+      variantId: variantIdForShopOrder,
       isCustom: true,
       customProductId: customOrder.id,
       designSnapshot: customOrder.designSnapshot,
@@ -202,7 +219,7 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
       textContent: customOrder.textContent,
     };
 
-    navigate("/buy-now/confirm", {
+    navigate("/order-detail/confirm", {
       state: {
         items: [checkoutItem],
         fromCustom: true,

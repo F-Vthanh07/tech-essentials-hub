@@ -1,9 +1,10 @@
 import { httpClient } from './httpClient';
+import { rememberCustomOrderVariantId } from '@/lib/customOrderVariantStorage';
 
+/** Khớp API `CreateCustomOrderRequest`: chỉ gửi `variantId` (biến thể đã chọn). */
 export interface CreateCustomProductRequest {
   accountId: string;
-  productId: string;
-  productBaseId?: string;
+  variantId: string;
   color: string;
   material: string;
   textContent: string;
@@ -37,7 +38,10 @@ export interface FileAttachment {
 export interface ApiCustomProduct {
   id: string;
   accountId?: string;
-  productId?: string;
+  /** Đồng bộ với `variantId` sau normalize (BE có thể trả tên này). */
+  productBaseId?: string;
+  /** Biến thể (SKU) — nguồn duy nhất cho custom order. */
+  variantId?: string;
   color?: string;
   material?: string;
   textContent?: string;
@@ -70,9 +74,52 @@ export const toISODateString = (dateStr: string): string => {
   return new Date(dateStr + 'T00:00:00.000Z').toISOString();
 };
 
+const normalizeRawId = (value?: string | null) => {
+  if (!value) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed || trimmed.toLowerCase() === 'null') return undefined;
+  return trimmed;
+};
+
+/**
+ * Gom id biến thể dùng cho checkout / order.
+ * BE đôi khi trả `productBaseId` khác `variantId` đã gửi (vd. map nhầm sang id khác);
+ * khi có `fallback.variantId` (payload create), ưu tiên giữ đúng UUID đã chọn trên UI.
+ */
+const normalizeCustomProduct = (
+  raw: ApiCustomProduct,
+  fallback?: Pick<CreateCustomProductRequest, 'variantId'>
+): ApiCustomProduct => {
+  const variantResolved =
+    normalizeRawId(raw.variantId) ??
+    normalizeRawId(fallback?.variantId) ??
+    normalizeRawId(raw.productBaseId);
+
+  const { productId: _ignoreProductId, ...rest } = raw as ApiCustomProduct & {
+    productId?: string;
+  };
+
+  return {
+    ...rest,
+    variantId: variantResolved,
+    productBaseId: variantResolved,
+  };
+};
+
+const normalizeCustomProductList = (items: ApiCustomProduct[] | null | undefined) =>
+  Array.isArray(items) ? items.map((item) => normalizeCustomProduct(item)) : [];
+
 export const customProductService = {
   create: (data: CreateCustomProductRequest) =>
-    httpClient.post<ApiCustomProduct>('/api/custom-order/create', data),
+    httpClient
+      .post<ApiCustomProduct>('/api/custom-order/create', data)
+      .then((res) => {
+        const normalized = normalizeCustomProduct(res, data);
+        if (normalized.id && data.variantId) {
+          rememberCustomOrderVariantId(normalized.id, data.variantId);
+        }
+        return normalized;
+      }),
 
   updateQuote: (id: string, data: UpdateCustomProductQuoteRequest) =>
     httpClient.post<ApiCustomProduct>(`/api/custom-order/${id}/quote`, {
@@ -85,12 +132,18 @@ export const customProductService = {
     httpClient.post<ApiCustomProduct>(`/api/custom-order/${id}/status`, data),
 
   getById: (id: string) =>
-    httpClient.get<ApiCustomProduct>(`/api/custom-order/${id}`),
+    httpClient
+      .get<ApiCustomProduct>(`/api/custom-order/${id}`)
+      .then((res) => normalizeCustomProduct(res)),
 
   getAll: () =>
-    httpClient.get<ApiCustomProduct[]>('/api/custom-order/get-all'),
+    httpClient
+      .get<ApiCustomProduct[]>('/api/custom-order/get-all')
+      .then((res) => normalizeCustomProductList(res)),
 
   /** Đơn custom của tài khoản (cùng pattern với order get-my) */
   getMy: (accountId: string) =>
-    httpClient.post<ApiCustomProduct[]>('/api/custom-order/get-my', { accountId }),
+    httpClient
+      .post<ApiCustomProduct[]>('/api/custom-order/get-my', { accountId })
+      .then((res) => normalizeCustomProductList(res)),
 };
