@@ -57,9 +57,12 @@ const CartDrawer = ({
     }
     const selectedItems = items.filter((item) => selectedItemIds.has(item.id));
     onClose();
-    navigate("/order-detail/confirm", {
+    navigate("/order-detail-cartItem/confirm", {
       state: {
-        items: selectedItems,
+        items: selectedItems.map(item => ({
+          ...item,
+          cartItemId: item.id
+        })),
         fromCart: true,
       },
     });

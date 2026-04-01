@@ -53,6 +53,22 @@ export const orderService = {
   create: (data: CreateOrderRequest) =>
     httpClient.post<ApiOrder>('/api/order/create', data),
 
+  /** Create an order from cart items */
+  createFromCartItems: (
+    params: { receiverName: string; receiverPhone: string; addressId: string },
+    cartItemIds: string[]
+  ) => {
+    const query = new URLSearchParams({
+      ReceiverName: params.receiverName,
+      ReceiverPhone: params.receiverPhone,
+      AddressId: params.addressId,
+    }).toString();
+    return httpClient.post<ApiOrder>(
+      `/api/order/Create-order-by-card-Items-id?${query}`,
+      cartItemIds
+    );
+  },
+
   /** Update an order */
   update: (id: string, data: Partial<ApiOrder>) =>
     httpClient.put<ApiOrder>(`/api/order/update/${id}`, data),

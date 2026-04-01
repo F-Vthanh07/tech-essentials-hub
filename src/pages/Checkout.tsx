@@ -340,6 +340,11 @@ const Checkout = () => {
       return;
     }
 
+    if (!selectedAddressId) {
+      toast.error("Vui lòng lưu hoặc chọn địa chỉ giao hàng từ danh sách");
+      return;
+    }
+
     if (isCompanyInvoice && (!companyInfo.companyName || !companyInfo.companyTaxCode)) {
       toast.error("Vui lòng điền đầy đủ thông tin xuất hóa đơn");
       return;
@@ -348,22 +353,25 @@ const Checkout = () => {
     setIsSubmitting(true);
 
     try {
-      const orderItems = cartItems.map(item => ({
-        variantId: (item as any).variantId || item.id,
-        quantity: item.quantity,
-      }));
+      const cartItemIds = cartItems
+        .map(item => item.id)
+        .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+
+      if (cartItemIds.length === 0) {
+        toast.error("Không có sản phẩm hợp lệ trong giỏ hàng để thanh toán");
+        setIsSubmitting(false);
+        return;
+      }
 
       const accountId = user?.id || '';
 
-      if (accountId && orderItems.length > 0) {
+      if (accountId) {
         const { orderService } = await import('@/services/OrderService');
-        const order = await orderService.create({
-          accountId,
+        const order = await orderService.createFromCartItems({
           receiverName: formData.fullName,
           receiverPhone: formData.phone,
-          addressId: selectedAddressId || "",
-          orderItems,
-        });
+          addressId: selectedAddressId,
+        }, cartItemIds);
 
         const storedOrder = buildStoredOrder(order.id);
         prependStoredOrder(storedOrder);

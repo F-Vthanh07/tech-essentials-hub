@@ -25,6 +25,7 @@ import PaymentFailed from "./pages/PaymentFailed";
 import OrderBill from "./pages/OrderBill";
 import OrderStatus from "./pages/OrderStatus";
 import BuyNowConfirm from "./pages/BuyNowConfirm";
+import CartCheckoutConfirm from "./pages/CartCheckoutConfirm";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/payment/success" element={<PaymentSuccess />} />
               <Route path="/payment/failed" element={<PaymentFailed />} />
               <Route path="/order-detail/confirm" element={<BuyNowConfirm />} />
+              <Route path="/order-detail-cartItem/confirm" element={<CartCheckoutConfirm />} />
               <Route path="/orders/:id/bill" element={<OrderBill />} />
               <Route path="/orders/:id/status" element={<OrderStatus />} />
               

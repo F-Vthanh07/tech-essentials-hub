@@ -82,10 +82,11 @@ const Cart = () => {
       toast.error("Vui lòng chọn ít nhất một sản phẩm để tiếp tục");
       return;
     }
-    navigate("/order-detail/confirm", {
+    navigate("/order-detail-cartItem/confirm", {
       state: {
         items: selectedItems.map((item) => ({
           ...item.product,
+          cartItemId: item.id,
           quantity: item.quantity,
           selectedColor: item.selectedColor,
           variantId: item.variantId,
