@@ -16,6 +16,7 @@ type ChatMessage = {
   sender: "user" | "staff" | "ai";
   content: string;
   time: string;
+  isMine?: boolean;
 };
 
 const formatTime = (date: Date) =>
@@ -25,7 +26,7 @@ const formatTime = (date: Date) =>
   });
 
 const StaffChatBubble = () => {
-  const { token, isAuthReady } = useAuth();
+  const { user, token, isAuthReady } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -35,6 +36,7 @@ const StaffChatBubble = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isRoomClosed, setIsRoomClosed] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [hasStaffJoined, setHasStaffJoined] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -89,18 +91,34 @@ const StaffChatBubble = () => {
   }, []);
 
   const mapRoomMessage = (m: ChatMessageResponse): ChatMessage => {
+    const userType = String(m.userType || "").toLowerCase();
     const sender: ChatMessage["sender"] =
-      m.userType === "Customer" ? "user" : m.userType === "AI" ? "ai" : "staff";
-    return {
+      userType === "ai" ? "ai" : userType === "staff" ? "staff" : "user";
+    const isMine = Boolean(m.senderId && user?.id && m.senderId === user.id);
+
+    const mapped: ChatMessage = {
       id: m.id,
       sender,
       content: m.content,
       time: formatTime(new Date(m.createdAt)),
+      isMine,
     };
+
+    console.log("[StaffChatBubble] mapRoomMessage", {
+      original: m,
+      mapped,
+      currentUserId: user?.id,
+    });
+
+    return mapped;
   };
 
   const hydrateFromRoom = (room: ChatRoomResponse) => {
-    const history = (room.messages || []).map(mapRoomMessage);
+    console.log("[StaffChatBubble] hydrateFromRoom", room.id, room.messages);
+    const history = (room.messages || [])
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map(mapRoomMessage);
     setMessages((prev) => {
       // keep the first welcome message, then history
       const first = prev.find((p) => p.id === "welcome") || welcomeMessage;
@@ -123,6 +141,7 @@ const StaffChatBubble = () => {
         offHandlers.push(
           chatHub.on("ReceiveMessage", (msg) => {
             if (isCancelled) return;
+            console.log("[StaffChatBubble] ReceiveMessage", msg);
             setMessages((prev) => [...prev, mapRoomMessage(msg)]);
           })
         );
@@ -136,6 +155,7 @@ const StaffChatBubble = () => {
         offHandlers.push(
           chatHub.on("StaffJoined", () => {
             if (isCancelled) return;
+            setHasStaffJoined(true);
             toast.success("Staff da tham gia phong chat");
           })
         );
@@ -154,12 +174,17 @@ const StaffChatBubble = () => {
 
         if (openRoom) {
           setRoomId(openRoom.id);
+          setHasStaffJoined(Boolean(openRoom.activeStaffId));
           const roomDetail = await chatRoomService.getRoomDetails(openRoom.id).catch(() => null);
-          if (roomDetail) hydrateFromRoom(roomDetail);
+          if (roomDetail) {
+            setHasStaffJoined(Boolean(roomDetail.activeStaffId));
+            hydrateFromRoom(roomDetail);
+          }
           await chatHub.joinRoom(openRoom.id);
         } else {
           const created = await chatRoomService.createRoom();
           setRoomId(created.id);
+          setHasStaffJoined(false);
           hydrateFromRoom(created);
           await chatHub.joinRoom(created.id);
         }
@@ -184,6 +209,14 @@ const StaffChatBubble = () => {
     if (!trimmed) return;
     if (!isAvailable) return;
 
+    console.log("[StaffChatBubble] handleSend", {
+      trimmed,
+      mode,
+      roomId,
+      isRoomClosed,
+      isAvailable,
+    });
+
     setInputValue("");
 
     if (mode === "ai" || !token) {
@@ -192,6 +225,7 @@ const StaffChatBubble = () => {
         sender: "user",
         content: trimmed,
         time: formatTime(new Date()),
+        isMine: true,
       };
       setMessages((prev) => [...prev, optimistic]);
       try {
@@ -225,11 +259,39 @@ const StaffChatBubble = () => {
       return;
     }
 
+    const shouldUseAiFallback = !hasStaffJoined;
+
     try {
       await chatHub.sendMessage(roomId, trimmed);
     } catch (err) {
       console.warn("customer send failed", err);
       toast.error("Khong the gui tin nhan");
+    }
+
+    if (shouldUseAiFallback) {
+      console.log("[StaffChatBubble] AI fallback on room mode", {
+        roomId,
+        hasStaffJoined,
+      });
+      try {
+        const res = await chatboxService.send({ message: trimmed, language: "vi" });
+        if (!res?.isSuccessful) {
+          toast.error("AI khong phan hoi duoc luc nay");
+          return;
+        }
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ai-${Date.now()}`,
+            sender: "ai",
+            content: res.message,
+            time: formatTime(new Date(res.respondedAt || Date.now())),
+          },
+        ]);
+      } catch (err) {
+        console.warn("ai fallback send failed", err);
+        toast.error("Khong the gui tin nhan AI");
+      }
     }
   };
 
@@ -261,31 +323,36 @@ const StaffChatBubble = () => {
           <CardContent className="p-0">
             <ScrollArea className="h-72 px-4 py-3" ref={scrollContainerRef}>
               <div className="space-y-3">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                      message.sender === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : message.sender === "ai"
-                          ? "bg-blue-500/10 text-foreground border border-blue-500/20"
-                          : "bg-muted text-foreground"
-                    )}
-                  >
-                    <p>{message.content}</p>
-                    <p
+                {messages.map((message) => {
+                  const isCurrentUserMessage =
+                    message.sender === "user" && message.isMine === true;
+
+                  return (
+                    <div
+                      key={message.id}
                       className={cn(
-                        "mt-1 text-[11px]",
-                        message.sender === "user"
-                          ? "text-primary-foreground/80"
-                          : "text-muted-foreground"
+                        "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                        isCurrentUserMessage
+                          ? "ml-auto bg-primary text-primary-foreground"
+                          : message.sender === "ai"
+                            ? "bg-blue-500/10 text-foreground border border-blue-500/20"
+                            : "bg-muted text-foreground"
                       )}
                     >
-                      {message.time}
-                    </p>
-                  </div>
-                ))}
+                      <p>{message.content}</p>
+                      <p
+                        className={cn(
+                          "mt-1 text-[11px]",
+                          isCurrentUserMessage
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {message.time}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </CardContent>

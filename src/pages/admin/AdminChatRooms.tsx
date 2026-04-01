@@ -103,6 +103,7 @@ const AdminChatRooms = () => {
         offs.push(
           chatHub.on("AIStatusChanged", (data) => {
             if (cancelled) return;
+            console.log("[AdminChatRooms] AIStatusChanged", data);
             setSelectedRoom((prev) => {
               if (!prev || prev.id !== data.roomId) return prev;
               return { ...prev, isAIEnabled: data.isAIEnabled };
@@ -163,11 +164,20 @@ const AdminChatRooms = () => {
 
   const handleToggleAi = async () => {
     if (!selectedRoom) return;
+    console.log("[AdminChatRooms] handleToggleAi", {
+      roomId: selectedRoom.id,
+      current: selectedRoom.isAIEnabled,
+      next: !selectedRoom.isAIEnabled,
+    });
     try {
       await chatRoomService.toggleAi(selectedRoom.id, !selectedRoom.isAIEnabled);
       setSelectedRoom((prev) =>
         prev ? { ...prev, isAIEnabled: !prev.isAIEnabled } : prev
       );
+      console.log("[AdminChatRooms] toggleAi success", {
+        roomId: selectedRoom.id,
+        isAIEnabled: !selectedRoom.isAIEnabled,
+      });
     } catch (err) {
       console.warn("toggle ai failed", err);
       toast.error("Khong the doi trang thai AI");
@@ -178,8 +188,10 @@ const AdminChatRooms = () => {
     if (!selectedRoom) return;
     try {
       await chatRoomService.closeRoom(selectedRoom.id);
+      await chatHub.leaveRoom(selectedRoom.id).catch(() => {});
       setRooms((prev) => prev.filter((r) => r.id !== selectedRoom.id));
-      setSelectedRoom((prev) => (prev ? { ...prev, status: "Closed" } : prev));
+      setIsDetailOpen(false);
+      setSelectedRoom(null);
     } catch (err) {
       console.warn("close room failed", err);
       toast.error("Khong the dong phong");
