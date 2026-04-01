@@ -25,7 +25,9 @@ const Auth = () => {
   // redirect to home if already authenticated
   useEffect(() => {
     if (currentUser) {
-      navigate(currentUser.role === "Admin" ? "/admin" : "/", { replace: true });
+      if (currentUser.role === "Admin") navigate("/admin", { replace: true });
+      else if (currentUser.role === "Staff") navigate("/staff", { replace: true });
+      else navigate("/", { replace: true });
     }
   }, [currentUser, navigate]);
 
@@ -57,7 +59,9 @@ const Auth = () => {
       await createAndLoadCart();
 
       toast.success("Đăng nhập thành công!");
-      navigate(resp.role === 'Admin' ? '/admin' : '/');
+      if (resp.role === 'Admin') navigate('/admin');
+      else if (resp.role === 'Staff') navigate('/staff');
+      else navigate('/');
     } catch (err) {
       console.warn('API login failed', err);
       toast.error("Email hoặc mật khẩu không đúng");

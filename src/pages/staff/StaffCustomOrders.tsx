@@ -33,7 +33,7 @@ import { toast } from "@/hooks/use-toast";
 
 type CustomOrderStatus = string;
 
-const AdminCustomOrders = () => {
+const StaffCustomOrders = () => {
   const [orders, setOrders] = useState<ApiCustomProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -564,5 +564,5 @@ const AdminCustomOrders = () => {
   );
 };
 
-export default AdminCustomOrders;
+export default StaffCustomOrders;
 

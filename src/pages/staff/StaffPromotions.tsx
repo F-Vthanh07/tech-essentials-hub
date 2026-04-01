@@ -20,7 +20,7 @@ import { Plus, Pencil, Trash2, Search, Loader2, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 
-const AdminPromotions = () => {
+const StaffPromotions = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -449,4 +449,4 @@ const AdminPromotions = () => {
   );
 };
 
-export default AdminPromotions;
+export default StaffPromotions;

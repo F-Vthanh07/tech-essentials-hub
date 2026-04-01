@@ -5,7 +5,7 @@ import { productService } from "@/services/ProductService";
 import { orderService, ApiOrder } from "@/services/OrderService";
 import { Product } from "@/types/product";
 
-const AdminDashboard = () => {
+const StaffDashboard = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -134,4 +134,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+export default StaffDashboard;

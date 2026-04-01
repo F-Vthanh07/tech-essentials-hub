@@ -36,7 +36,7 @@ const roomStatusLabel = (status: ChatRoomResponse["status"]) => {
   return "Da dong";
 };
 
-const AdminChatRooms = () => {
+const StaffChatRooms = () => {
   const [rooms, setRooms] = useState<ChatRoomResponse[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -103,7 +103,7 @@ const AdminChatRooms = () => {
         offs.push(
           chatHub.on("AIStatusChanged", (data) => {
             if (cancelled) return;
-            console.log("[AdminChatRooms] AIStatusChanged", data);
+            console.log("[StaffChatRooms] AIStatusChanged", data);
             setSelectedRoom((prev) => {
               if (!prev || prev.id !== data.roomId) return prev;
               return { ...prev, isAIEnabled: data.isAIEnabled };
@@ -164,7 +164,7 @@ const AdminChatRooms = () => {
 
   const handleToggleAi = async () => {
     if (!selectedRoom) return;
-    console.log("[AdminChatRooms] handleToggleAi", {
+    console.log("[StaffChatRooms] handleToggleAi", {
       roomId: selectedRoom.id,
       current: selectedRoom.isAIEnabled,
       next: !selectedRoom.isAIEnabled,
@@ -174,7 +174,7 @@ const AdminChatRooms = () => {
       setSelectedRoom((prev) =>
         prev ? { ...prev, isAIEnabled: !prev.isAIEnabled } : prev
       );
-      console.log("[AdminChatRooms] toggleAi success", {
+      console.log("[StaffChatRooms] toggleAi success", {
         roomId: selectedRoom.id,
         isAIEnabled: !selectedRoom.isAIEnabled,
       });
@@ -436,4 +436,4 @@ const AdminChatRooms = () => {
   );
 };
 
-export default AdminChatRooms;
+export default StaffChatRooms;

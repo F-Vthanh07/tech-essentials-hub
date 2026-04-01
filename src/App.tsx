@@ -31,9 +31,17 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminReports from "./pages/admin/AdminReports";
-import AdminCustomOrders from "./pages/admin/AdminCustomOrders";
-import AdminChatRooms from "./pages/admin/AdminChatRooms";
-import AdminPromotions from "./pages/admin/AdminPromotions";
+import AdminUsers from "./pages/admin/AdminUsers";
+
+import StaffLayout from "./components/staff/StaffLayout";
+import StaffDashboard from "./pages/staff/StaffDashboard";
+import StaffProducts from "./pages/staff/StaffProducts";
+import StaffOrders from "./pages/staff/StaffOrders";
+import StaffReports from "./pages/staff/StaffReports";
+import StaffCustomOrders from "./pages/staff/StaffCustomOrders";
+import StaffChatRooms from "./pages/staff/StaffChatRooms";
+import StaffPromotions from "./pages/staff/StaffPromotions";
+
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -78,12 +86,28 @@ const App = () => (
                 }
               >
                 <Route index element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsers />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
-                <Route path="custom-orders" element={<AdminCustomOrders />} />
-                <Route path="promotions" element={<AdminPromotions />} />
                 <Route path="reports" element={<AdminReports />} />
-                <Route path="chat-rooms" element={<AdminChatRooms />} />
+              </Route>
+
+              {/* Staff Routes */}
+              <Route
+                path="/staff"
+                element={
+                  <ProtectedRoute requiredRole="Staff">
+                    <StaffLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<StaffDashboard />} />
+                <Route path="products" element={<StaffProducts />} />
+                <Route path="orders" element={<StaffOrders />} />
+                <Route path="custom-orders" element={<StaffCustomOrders />} />
+                <Route path="promotions" element={<StaffPromotions />} />
+                <Route path="reports" element={<StaffReports />} />
+                <Route path="chat-rooms" element={<StaffChatRooms />} />
               </Route>
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

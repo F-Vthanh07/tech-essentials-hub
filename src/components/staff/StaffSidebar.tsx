@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   Menu,
   LogOut,
-  Users,
+  PenTool,
+  MessageCircle,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,14 +18,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const menuItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Người dùng", url: "/admin/users", icon: Users },
-  { title: "Sản phẩm", url: "/admin/products", icon: Package },
-  { title: "Đơn hàng", url: "/admin/orders", icon: ShoppingCart },
-  { title: "Báo cáo", url: "/admin/reports", icon: BarChart3 },
+  { title: "Dashboard", url: "/staff", icon: LayoutDashboard },
+  { title: "Sản phẩm", url: "/staff/products", icon: Package },
+  { title: "Khuyến mãi", url: "/staff/promotions", icon: Tag },
+  { title: "Đơn hàng", url: "/staff/orders", icon: ShoppingCart },
+  { title: "Đơn custom", url: "/staff/custom-orders", icon: PenTool },
+  { title: "Phòng chat", url: "/staff/chat-rooms", icon: MessageCircle },
+  { title: "Báo cáo", url: "/staff/reports", icon: BarChart3 },
 ];
 
-const AdminSidebar = () => {
+const StaffSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -42,9 +46,9 @@ const AdminSidebar = () => {
       <div className="p-4 border-b border-border flex items-center justify-between">
         {!collapsed && (
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">Admin Panel</h1>
+            <h1 className="text-xl font-bold text-primary">Staff Panel</h1>
             <span className="text-sm font-medium text-muted-foreground mt-1 line-clamp-1">
-              {user?.name || user?.email?.split('@')[0] || 'Admin'}
+              {user?.name || user?.email?.split('@')[0] || 'Staff'}
             </span>
           </div>
         )}
@@ -64,7 +68,7 @@ const AdminSidebar = () => {
             <li key={item.title}>
               <NavLink
                 to={item.url}
-                end={item.url === "/admin"}
+                end={item.url === "/staff"}
                 className={({ isActive }) => cn(
                   "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                   "hover:bg-muted",
@@ -106,4 +110,4 @@ const AdminSidebar = () => {
   );
 };
 
-export default AdminSidebar;
+export default StaffSidebar;
