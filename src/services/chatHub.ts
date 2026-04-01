@@ -1,5 +1,5 @@
 import * as signalR from "@microsoft/signalr";
-import { API_BASE_URL } from "./httpClient";
+import { BASE_URL } from "./httpClient";
 import type { ChatMessageResponse, ChatRoomResponse } from "./ChatRoomService";
 
 type StaffJoinedPayload = { roomId: string; staffId: string };
@@ -32,7 +32,7 @@ class ChatHubClient {
     if (this.connection) return this.connection;
 
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE_URL}/hubs/chat`, {
+      .withUrl(`${BASE_URL}/hubs/chat`, {
         accessTokenFactory: () => localStorage.getItem("authToken") || "",
       })
       .withAutomaticReconnect()
