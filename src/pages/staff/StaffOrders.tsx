@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Search, Eye, Trash2, Loader2 } from "lucide-react";
 import { orderService } from "@/services/OrderService";
+import { variantApi } from "@/services/ProductService";
+import { ApiProductVariant } from "@/types/product";
 import { Order } from "@/types/order";
 import { toast } from "@/hooks/use-toast";
 
@@ -51,10 +53,26 @@ const StaffOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [variantsMap, setVariantsMap] = useState<Record<string, ApiProductVariant>>({});
+
+  useEffect(() => {
+    fetchVariants();
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [variantsMap]);
+
+  const fetchVariants = async () => {
+    try {
+      const allVariants = await variantApi.getAll();
+      const map: Record<string, ApiProductVariant> = {};
+      allVariants.forEach(v => { map[v.id] = v; });
+      setVariantsMap(map);
+    } catch (err) {
+      console.warn('Failed to fetch variants', err);
+    }
+  };
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -66,16 +84,24 @@ const StaffOrders = () => {
         orderNumber: `ORD-${String(index + 1).padStart(3, '0')}`,
         status: normalizeStatus(o.status),
         createdAt: o.createdAt || o.orderDate || new Date().toISOString(),
-        items: ((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).map((item: any) => ({
-          product: {
-            id: item.variantId || item.id,
-            name: item.variantName || `Variant #${(item.variantId || '').slice(0, 8)}`,
-            image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop',
+        items: ((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).map((item: any) => {
+          const variant = variantsMap[item.variantId];
+          return {
+            product: {
+              id: item.variantId || item.id,
+              name: variant ? `${variant.productName || variant.name} - ${variant.name}` : (item.variantName || `Variant #${(item.variantId || '').slice(0, 8)}`),
+              image: variant?.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop',
+              price: item.price || 0,
+              brand: '',
+              category: '',
+              device: '',
+              rating: 0,
+              reviewCount: 0,
+            },
+            quantity: item.quantity || 1,
             price: item.price || 0,
-          },
-          quantity: item.quantity || 1,
-          price: item.price || 0,
-        })),
+          };
+        }),
         total: o.totalAmount || (((o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []).reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0)),
         subtotal: o.totalAmount || 0,
         shippingFee: 0,
@@ -239,18 +265,6 @@ const StaffOrders = () => {
 
           {selectedOrder && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-muted-foreground mb-2">Thông tin khách hàng</h4>
-                  <p className="font-medium">{selectedOrder.shippingAddress.fullName}</p>
-                  <p className="text-sm text-muted-foreground">{selectedOrder.shippingAddress.phone}</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-muted-foreground mb-2">Mã đơn hàng (ID)</h4>
-                  <p className="text-sm font-mono break-all">{selectedOrder.id}</p>
-                </div>
-              </div>
-
               <div>
                 <h4 className="font-medium text-muted-foreground mb-2">Sản phẩm</h4>
                 <div className="space-y-3">
