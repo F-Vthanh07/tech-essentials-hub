@@ -275,8 +275,8 @@
    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
    const [resizeStart, setResizeStart] = useState({ width: 0, height: 0, x: 0, y: 0 });
    const [showTemplates, setShowTemplates] = useState(false);
+   const [imageUrl, setImageUrl] = useState("");
    const canvasRef = useRef<HTMLDivElement>(null);
-   const fileInputRef = useRef<HTMLInputElement>(null);
  
    const selectedElement = elements.find(el => el.id === selectedId);
  
@@ -320,38 +320,44 @@
      toast.success("Đã thêm text mới");
    };
  
-   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-     const file = e.target.files?.[0];
-     if (file) {
-       if (file.size > 5 * 1024 * 1024) {
-         toast.error("Kích thước file tối đa 5MB");
-         return;
-       }
-       const reader = new FileReader();
-       reader.onload = (event) => {
-         const newElement: DesignElement = {
-           id: generateId(),
-           type: "image",
-           x: 20,
-           y: 60,
-           width: 80,
-           height: 80,
-           rotation: 0,
-           scaleX: 1,
-           scaleY: 1,
-           content: event.target?.result as string,
-           zIndex: elements.length
-         };
-         setElements([...elements, newElement]);
-         setSelectedId(newElement.id);
-         toast.success("Đã thêm hình ảnh mới");
-       };
-       reader.readAsDataURL(file);
-     }
-     if (fileInputRef.current) {
-       fileInputRef.current.value = '';
-     }
-   };
+  const isValidImageUrl = (value: string) => {
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddImageUrl = () => {
+    const url = imageUrl.trim();
+    if (!url) {
+      toast.error("Vui lòng nhập URL hình ảnh.");
+      return;
+    }
+    if (!isValidImageUrl(url)) {
+      toast.error("URL hình ảnh không hợp lệ.");
+      return;
+    }
+
+    const newElement: DesignElement = {
+      id: generateId(),
+      type: "image",
+      x: 20,
+      y: 60,
+      width: 80,
+      height: 80,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      content: url,
+      zIndex: elements.length
+    };
+    setElements([...elements, newElement]);
+    setSelectedId(newElement.id);
+    setImageUrl("");
+    toast.success("Đã thêm ảnh từ URL");
+  };
  
    const updateElement = (id: string, updates: Partial<DesignElement>) => {
      setElements(elements.map(el => 
@@ -498,18 +504,18 @@
            <Type className="w-4 h-4 mr-1" />
            Thêm text
          </Button>
-         <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-           <ImageIcon className="w-4 h-4 mr-1" />
-           Thêm ảnh
-         </Button>
-         <input
-           ref={fileInputRef}
-           type="file"
-           accept="image/*"
-           onChange={handleImageUpload}
-           className="hidden"
-         />
-         
+         <div className="flex flex-1 min-w-[240px] items-center gap-2">
+           <Input
+             value={imageUrl}
+             onChange={(e) => setImageUrl(e.target.value)}
+             placeholder="URL ảnh..."
+             className="h-10"
+           />
+           <Button variant="outline" size="sm" onClick={handleAddImageUrl}>
+             <ImageIcon className="w-4 h-4 mr-1" />
+             Thêm ảnh
+           </Button>
+         </div>
          {selectedId && (
            <>
              <div className="w-px bg-border mx-2" />

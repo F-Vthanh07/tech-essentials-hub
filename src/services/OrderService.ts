@@ -49,6 +49,10 @@ export const orderService = {
   getMyOrders: (accountId: string) =>
     httpClient.post<ApiOrder[]>('/api/order/get-my', { accountId }),
 
+  /** Get current user's orders by user ID */
+  getOrdersByUserId: (userId: string) =>
+    httpClient.get<ApiOrder[]>(`/api/order/get-order-by-user-id?userId=${encodeURIComponent(userId)}`),
+
   /** Create a new order */
   create: (data: CreateOrderRequest) =>
     httpClient.post<ApiOrder>('/api/order/create', data),

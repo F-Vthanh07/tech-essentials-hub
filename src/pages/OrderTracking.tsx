@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Package,
   Truck,
@@ -27,7 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import { sampleOrders, getOrderStatusSteps } from "@/data/orders";
+import { getOrderStatusSteps } from "@/data/orders";
 import { Order } from "@/types/order";
 import { cn } from "@/lib/utils";
 import { getStoredOrders } from "@/lib/orderStorage";
@@ -72,16 +72,29 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
     const run = async () => {
       setLoading(true);
       try {
-        const data = await customProductService.getMy(accountId);
-        if (!cancelled) setItems(Array.isArray(data) ? data : []);
+        let myCustomOrders: ApiCustomProduct[] = [];
+
+        try {
+          myCustomOrders = await customProductService.getMy(accountId);
+        } catch (e) {
+          console.warn("custom-order get-my failed, fallback to get-all", e);
+          const allCustom = await customProductService.getAll();
+          myCustomOrders = Array.isArray(allCustom)
+            ? allCustom.filter((item) => item.accountId === accountId)
+            : [];
+        }
+
+        if (!cancelled) {
+          setItems(Array.isArray(myCustomOrders) ? myCustomOrders : []);
+        }
       } catch (e) {
-        console.warn("get-my custom orders failed", e);
+        console.warn("custom-order get-all failed", e);
         if (!cancelled) {
           setItems([]);
           toast({
             title: "Không tải được đơn custom",
             description:
-              "Kiểm tra kết nối hoặc đăng nhập lại. Nếu API chưa có /api/custom-order/get-my, cần bổ sung backend.",
+              "Kiểm tra kết nối hoặc đăng nhập lại. Nếu backend chưa có /api/custom-order/get-all, cần bổ sung backend hoặc kiểm tra endpoint.",
             variant: "destructive",
           });
         }
@@ -147,12 +160,12 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
     return (
       <Card className="p-10 text-center">
         <PenTool className="w-14 h-14 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Chưa có đơn custom</h3>
+        <h3 className="text-lg font-semibold mb-2">Bạn chưa có đơn custom</h3>
         <p className="text-muted-foreground mb-4">
-          Thiết kế ốp lưng tại trang custom — đơn của bạn sẽ hiển thị ở đây.
+          Mọi yêu cầu thiết kế ốp lưng của bạn sẽ được lưu tại đây khi bạn tạo đơn mới.
         </p>
         <Button asChild>
-          <Link to="/custom-case">Tạo đơn custom</Link>
+          <Link to="/custom-case">Tạo đơn custom ngay</Link>
         </Button>
       </Card>
     );
@@ -205,6 +218,49 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
                   {order.quantity ?? 1}
                 </p>
               </div>
+
+              {(order.designSnapshot || (Array.isArray(order.imageUrls) && order.imageUrls.length > 0) || (Array.isArray(order.files) && order.files.length > 0)) && (
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <p className="font-semibold">Xem lại thiết kế của bạn</p>
+                  {order.designSnapshot && (
+                    <div className="overflow-hidden rounded-lg border border-border bg-background">
+                      <img
+                        src={order.designSnapshot}
+                        alt="Thiết kế custom"
+                        className="w-full h-auto object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {order.files && order.files.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {order.files.map((file, idx) => (
+                        <div key={file.id || idx} className="overflow-hidden rounded-lg border border-border bg-background">
+                          <img
+                            src={file.fileUrl}
+                            alt={file.fileName || `Ảnh thiết kế ${idx + 1}`}
+                            className="w-full h-32 object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {order.imageUrls && order.imageUrls.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {order.imageUrls.map((url, idx) => (
+                        <div key={idx} className="overflow-hidden rounded-lg border border-border bg-background">
+                          <img
+                            src={url}
+                            alt={`Ảnh thiết kế ${idx + 1}`}
+                            className="w-full h-32 object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {showQuote && (
                 <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
@@ -551,12 +607,18 @@ const OrderCard = ({ order, isExpanded, onToggle }: {
 };
 
 const OrderTracking = () => {
+  const location = useLocation();
   const { user } = useAuth();
   const [pageTab, setPageTab] = useState<"shop" | "custom">("shop");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
-  const [orders, setOrders] = useState<Order[]>(sampleOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setPageTab(params.get("tab") === "custom" ? "custom" : "shop");
+  }, [location.search]);
 
   // Fetch orders from API
   useEffect(() => {
@@ -573,8 +635,8 @@ const OrderTracking = () => {
 
       if (!user?.id) {
         if (localOrders.length === 0) {
-          setOrders(sampleOrders);
-          setExpandedOrderId(sampleOrders[0]?.id || null);
+          setOrders([]);
+          setExpandedOrderId(null);
         }
         return;
       }
@@ -582,14 +644,10 @@ const OrderTracking = () => {
         const { orderService } = await import('@/services/OrderService');
         let apiOrders: any[] = [];
         try {
-          apiOrders = await orderService.getMyOrders(user.id);
-        } catch {
+          apiOrders = await orderService.getOrdersByUserId(user.id);
+        } catch (error) {
+          console.warn('Failed to fetch orders by user ID', error);
           apiOrders = [];
-        }
-
-        // Fallback to get-all endpoint response shape when get-my is empty/unavailable
-        if (!apiOrders || apiOrders.length === 0) {
-          apiOrders = await orderService.getAll();
         }
 
         if (apiOrders && apiOrders.length > 0) {
@@ -630,15 +688,15 @@ const OrderTracking = () => {
           if (merged.length > 0) setExpandedOrderId(merged[0].id);
         } else {
           if (localOrders.length === 0) {
-            setOrders(sampleOrders);
-            if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+            setOrders([]);
+            setExpandedOrderId(null);
           }
         }
       } catch (err) {
         console.warn('Failed to fetch orders from API', err);
         if (localOrders.length === 0) {
-          setOrders(sampleOrders);
-          if (sampleOrders.length > 0) setExpandedOrderId(sampleOrders[0].id);
+          setOrders([]);
+          setExpandedOrderId(null);
         }
       }
     };

@@ -417,7 +417,45 @@ const AdminCustomOrders = () => {
                 )}
               </div>
 
-              {Array.isArray(selectedOrder.imageUrls) &&
+              {selectedOrder.designSnapshot && (
+                <div>
+                  <h4 className="font-medium text-muted-foreground mb-2">
+                    Mẫu thiết kế preview
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden bg-muted">
+                    <img
+                      src={selectedOrder.designSnapshot}
+                      alt="Design snapshot"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(Array.isArray(selectedOrder.files) && selectedOrder.files.length > 0) && (
+                <div>
+                  <h4 className="font-medium text-muted-foreground mb-2">
+                    Hình ảnh đính kèm
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {selectedOrder.files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="border rounded-lg overflow-hidden bg-muted"
+                      >
+                        <img
+                          src={file.fileUrl}
+                          alt={file.fileName || "Custom image"}
+                          className="w-full h-32 object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(!Array.isArray(selectedOrder.files) || selectedOrder.files.length === 0) &&
+                Array.isArray(selectedOrder.imageUrls) &&
                 selectedOrder.imageUrls.length > 0 && (
                   <div>
                     <h4 className="font-medium text-muted-foreground mb-2">

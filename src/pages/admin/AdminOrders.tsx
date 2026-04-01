@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/select";
 import { Search, Eye, Trash2, Loader2 } from "lucide-react";
 import { orderService } from "@/services/OrderService";
-import { sampleOrders } from "@/data/orders";
 import { Order } from "@/types/order";
 import { toast } from "@/hooks/use-toast";
 
@@ -97,11 +96,11 @@ const AdminOrders = () => {
       if (mapped.length > 0) {
         setOrders(mapped);
       } else {
-        setOrders(sampleOrders);
+        setOrders([]);
       }
     } catch (err) {
       console.warn('Failed to fetch orders from API', err);
-      setOrders(sampleOrders);
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }

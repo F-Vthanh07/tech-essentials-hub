@@ -3,12 +3,15 @@ import { httpClient } from './httpClient';
 export interface CreateCustomProductRequest {
   accountId: string;
   productId: string;
+  productBaseId?: string;
   color: string;
   material: string;
   textContent: string;
   note: string;
   quantity: number;
-  imageUrls: string[];
+  imageUrls?: string[];
+  designElements?: any[];
+  designSnapshot?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -25,6 +28,12 @@ export interface UpdateCustomProductStatusRequest {
   note?: string;
 }
 
+export interface FileAttachment {
+  id: string;
+  fileUrl: string;
+  fileName?: string | null;
+}
+
 export interface ApiCustomProduct {
   id: string;
   accountId?: string;
@@ -35,9 +44,12 @@ export interface ApiCustomProduct {
   note?: string;
   quantity?: number;
   imageUrls?: string[];
+  files?: FileAttachment[];
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  designSnapshot?: string;
+  designElements?: any[];
   price?: number;
   estimatedDeliveryDate?: string;
   status?: string;

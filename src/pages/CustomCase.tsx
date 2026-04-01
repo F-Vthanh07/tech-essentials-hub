@@ -131,6 +131,76 @@ const caseMaterials = [
 
 const basePrice = 150000;
 
+const caseColorHex: Record<string, string> = {
+  transparent: "#f8fafc",
+  black: "#111827",
+  white: "#f8fafc",
+  red: "#ef4444",
+  blue: "#3b82f6",
+  green: "#22c55e",
+  pink: "#f472b6",
+  purple: "#8b5cf6",
+  yellow: "#f59e0b",
+  orange: "#f97316",
+};
+
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const generateDesignSnapshot = (
+  elements: DesignElement[],
+  caseColor: string
+) => {
+  const width = 720;
+  const height = 1280;
+  const caseWidth = 560;
+  const caseHeight = 1040;
+  const caseX = (width - caseWidth) / 2;
+  const caseY = 120;
+  const fill = caseColorHex[caseColor] || "#f8fafc";
+
+  const elementMarkup = elements
+    .map((element) => {
+      const x = caseX + (element.x / 100) * caseWidth;
+      const y = caseY + (element.y / 100) * caseHeight;
+      const w = (element.width / 100) * caseWidth;
+      const h = (element.height / 100) * caseHeight;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const transform =
+        element.rotation !== 0
+          ? ` transform="rotate(${element.rotation} ${cx} ${cy})"`
+          : "";
+
+      if (element.type === "image") {
+        const escapedUrl = escapeXml(element.content);
+        return `<image href="${escapedUrl}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" xlink:href="${escapedUrl}"${transform} />`;
+      }
+
+      return `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="${escapeXml(
+        element.fontFamily || "Arial"
+      )}" font-size="${element.fontSize || 16}" fill="${escapeXml(
+        element.color || "#000000"
+      )}"${transform}>${escapeXml(element.content)}</text>`;
+    })
+    .join("");
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}">
+      <rect width="100%" height="100%" fill="#111827" />
+      <rect x="${caseX}" y="${caseY}" width="${caseWidth}" height="${caseHeight}" rx="72" ry="72" fill="${fill}" stroke="#000000" stroke-width="4" />
+      ${elementMarkup}
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
 // Camera component based on phone style
 const CameraModule = ({ style, position }: { style: string; position: string }) => {
   const positionClasses = position === "top-center" ? "top-6 left-1/2 -translate-x-1/2" : "top-6 left-6";
@@ -280,6 +350,15 @@ const NotchModule = ({ style }: { style: string }) => {
     setDesignElements(elements);
   }, []);
 
+  const isValidImageUrl = (value: string) => {
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+
   const buildCustomOrderPayload = () => {
     if (!user?.id) {
       toast.error("Vui lòng đăng nhập để tạo đơn custom");
@@ -297,20 +376,26 @@ const NotchModule = ({ style }: { style: string }) => {
       .filter(Boolean)
       .join(" | ");
 
-    const imageUrls = designElements
-      .filter((element) => element.type === "image")
+    const imageElements = designElements.filter((element) => element.type === "image");
+    const imageUrls = imageElements
       .map((element) => element.content)
-      .filter(Boolean);
+      .filter((content): content is string => Boolean(content) && isValidImageUrl(content));
 
     return {
       accountId: user.id,
       productId: selectedProductId,
+      productBaseId: selectedProductId,
       color: selectedColor,
       material: selectedMaterial,
       textContent,
       note: `Custom case for ${selectedProductName || "selected product"}`,
       quantity,
-      imageUrls,
+      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      designElements: designElements.length > 0 ? designElements : undefined,
+      designSnapshot:
+        designElements.length > 0
+          ? generateDesignSnapshot(designElements, selectedColor)
+          : undefined,
       customerName: user.name ?? "",
       customerEmail: user.email ?? "",
       customerPhone: user.phone ?? "",
@@ -351,9 +436,11 @@ const NotchModule = ({ style }: { style: string }) => {
     const payload = buildCustomOrderPayload();
     if (!payload) return;
 
+    console.log("[CustomCase] create custom order payload:", payload);
     setIsSubmittingCustomOrder(true);
     try {
       const createdCustomOrder = await customProductService.create(payload);
+      console.log("[CustomCase] create custom order response:", createdCustomOrder);
       const customCartProduct = buildCustomCartProduct(createdCustomOrder?.id);
       if (customCartProduct) {
         addToCart(customCartProduct, quantity);
@@ -362,6 +449,7 @@ const NotchModule = ({ style }: { style: string }) => {
         description: `Đã thêm vào giỏ: ${selectedProductName || "Sản phẩm đã chọn"} - ${quantity} cái - ${totalPrice.toLocaleString()}đ`,
       });
     } catch (error) {
+      console.error("[CustomCase] create custom order error:", error);
       toast.error("Tạo đơn custom thất bại", {
         description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
       });
@@ -379,12 +467,19 @@ const NotchModule = ({ style }: { style: string }) => {
     const payload = buildCustomOrderPayload();
     if (!payload) return;
 
+    console.log("[CustomCase] create custom order payload:", payload);
     setIsSubmittingCustomOrder(true);
     try {
-      await customProductService.create(payload);
-      toast.success("Đã tạo đơn custom. Đang chuyển đến trang thanh toán...");
-      navigate("/checkout");
+      const createdCustomOrder = await customProductService.create(payload);
+      console.log("[CustomCase] create custom order response:", createdCustomOrder);
+      const customCartProduct = buildCustomCartProduct(createdCustomOrder?.id);
+      if (customCartProduct) {
+        addToCart(customCartProduct, quantity);
+      }
+      toast.success("Đã tạo đơn custom. Đang chuyển đến trang đơn hàng của bạn...");
+      navigate("/orders?tab=custom");
     } catch (error) {
+      console.error("[CustomCase] create custom order error:", error);
       toast.error("Tạo đơn custom thất bại", {
         description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
       });
@@ -408,6 +503,11 @@ const NotchModule = ({ style }: { style: string }) => {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Tạo chiếc ốp lưng độc nhất vô nhị với hình ảnh, chữ viết và màu sắc theo ý bạn
           </p>
+          {user?.name && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Xin chào, <span className="font-medium text-foreground">{user.name}</span>. Đơn custom của bạn sẽ được lưu và quản lý trong mục đơn custom.
+            </p>
+          )}
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -590,14 +690,14 @@ const NotchModule = ({ style }: { style: string }) => {
                     disabled={isSubmittingCustomOrder}
                   >
                     <ShoppingCart className="w-4 h-4 mr-2" />
-                    {isSubmittingCustomOrder ? "Đang gửi..." : "Thêm giỏ hàng"}
+                    {isSubmittingCustomOrder ? "Đang gửi..." : "Tạo custom và vào giỏ"}
                   </Button>
                   <Button 
                     className="flex-1"
                     onClick={handleBuyNow}
                     disabled={isSubmittingCustomOrder}
                   >
-                    {isSubmittingCustomOrder ? "Đang gửi..." : "Mua ngay"}
+                    {isSubmittingCustomOrder ? "Đang gửi..." : "Tạo đơn custom & xem đơn"}
                   </Button>
                 </div>
               </CardContent>
