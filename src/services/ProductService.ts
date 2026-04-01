@@ -17,6 +17,17 @@ export interface UpdateProductPayload {
   categoryId: string;
 }
 
+export interface VariantPayload {
+  productId: string;
+  sku: string;
+  name: string;
+  stockQuantity: number;
+  imageUrl: string;
+  color: string;
+  size: string;
+  price: number;
+}
+
 // === API calls ===
 
 export const productApi = {
@@ -33,9 +44,9 @@ export const variantApi = {
   getAll: () => httpClient.get<ApiProductVariant[]>('/api/product-variant/get-all'),
   getById: (id: string) =>
     httpClient.get<ApiProductVariant>(`/api/product-variant/get-by-id/${id}`),
-  create: (data: Omit<ApiProductVariant, 'id' | 'productName'>) =>
+  create: (data: VariantPayload) =>
     httpClient.post<ApiProductVariant>('/api/product-variant/create', data),
-  update: (id: string, data: Partial<ApiProductVariant>) =>
+  update: (id: string, data: VariantPayload) =>
     httpClient.put<ApiProductVariant>(`/api/product-variant/update/${id}`, data),
   delete: (id: string) => httpClient.del<any>(`/api/product-variant/delete/${id}`),
 };

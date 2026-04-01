@@ -3,7 +3,7 @@ import { brandService, Brand } from "@/services/BrandService";
 import { categoryService } from "@/services/CategoryService";
 import { deviceService } from "@/services/DeviceService";
 import { attributeService } from "@/services/AttributeService";
-import { productApi, variantApi, productService, compatibilityApi, productAttributeApi, type UpdateProductPayload } from "@/services/ProductService";
+import { productApi, variantApi, productService, compatibilityApi, productAttributeApi, type UpdateProductPayload, type VariantPayload } from "@/services/ProductService";
 import {
   ApiCategory, ApiDevice, ApiAttribute, ApiProduct,
   ApiProductVariant, ApiProductCompatibility, ApiProductAttribute,
@@ -1060,9 +1060,14 @@ function ProductsTab({
         await productApi.update(editingProduct.id, updatePayload);
         for (const cv of colorVariants.filter(v => v.id.startsWith('temp_'))) {
           await variantApi.create({
-            productId: editingProduct.id, sku: `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
-            name: cv.name, stockQuantity: cv.stockQuantity || 10, imageUrl: cv.image || formData.image,
-            color: cv.colorCode, size: cv.size || 'Default', price: cv.price, productName: null,
+            productId: editingProduct.id,
+            sku: cv.sku || `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
+            name: cv.name,
+            stockQuantity: cv.stockQuantity || 10,
+            imageUrl: cv.image || formData.image,
+            color: cv.colorCode || cv.color,
+            size: cv.size || 'Default',
+            price: cv.price,
           });
         }
         for (const a of editAttributes.filter(a => a.id.startsWith('temp_'))) {
@@ -1076,9 +1081,14 @@ function ProductsTab({
         const created = await productApi.create(payload as any);
         for (const cv of colorVariants) {
           await variantApi.create({
-            productId: created.id, sku: `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
-            name: cv.name, stockQuantity: cv.stockQuantity || 10, imageUrl: cv.image || formData.image,
-            color: cv.colorCode, size: cv.size || 'Default', price: cv.price, productName: null,
+            productId: created.id,
+            sku: cv.sku || `${formData.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
+            name: cv.name,
+            stockQuantity: cv.stockQuantity || 10,
+            imageUrl: cv.image || formData.image,
+            color: cv.colorCode || cv.color,
+            size: cv.size || 'Default',
+            price: cv.price,
           });
         }
         for (const a of editAttributes) {
@@ -1138,8 +1148,14 @@ function ProductsTab({
   const handleUpdateVariant = async (v: any) => {
     try {
       await variantApi.update(v.id, {
-        id: v.id, sku: v.sku, name: v.name, stockQuantity: v.stockQuantity,
-        imageUrl: v.image, color: v.colorCode, size: v.size, price: v.price,
+        productId: editingProduct?.id || v.productId,
+        sku: v.sku,
+        name: v.name,
+        stockQuantity: v.stockQuantity,
+        imageUrl: v.image || v.imageUrl,
+        color: v.colorCode || v.color,
+        size: v.size || 'Default',
+        price: v.price,
       });
       setColorVariants(colorVariants.map(cv => cv.id === v.id ? { ...cv, _saved: true } : cv));
       toast({ title: "Thành công", description: "Đã lưu biến thể" });
@@ -1225,58 +1241,58 @@ function ProductsTab({
                 const isToggling = togglingProductId === p.id;
 
                 return (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <img src={p.image} alt="" className="w-10 h-10 rounded object-cover"
-                      onError={e => (e.currentTarget.src = 'https://placehold.co/40')} />
-                  </TableCell>
-                  <TableCell className="font-medium max-w-[180px] truncate">{p.name}</TableCell>
-                  <TableCell>{p.brand}</TableCell>
-                  <TableCell>{p.category}</TableCell>
-                  <TableCell>{p.price.toLocaleString('vi-VN')}đ</TableCell>
-                  <TableCell>
-                    {p.colorVariants && p.colorVariants.length > 0 ? (
-                      <div className="flex gap-1">
-                        {p.colorVariants.slice(0, 3).map(cv => (
-                          <div key={cv.id} className="w-4 h-4 rounded-full border" style={{ backgroundColor: cv.colorCode }} title={cv.name} />
-                        ))}
-                        {p.colorVariants.length > 3 && <span className="text-xs text-muted-foreground">+{p.colorVariants.length - 3}</span>}
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <img src={p.image} alt="" className="w-10 h-10 rounded object-cover"
+                        onError={e => (e.currentTarget.src = 'https://placehold.co/40')} />
+                    </TableCell>
+                    <TableCell className="font-medium max-w-[180px] truncate">{p.name}</TableCell>
+                    <TableCell>{p.brand}</TableCell>
+                    <TableCell>{p.category}</TableCell>
+                    <TableCell>{p.price.toLocaleString('vi-VN')}đ</TableCell>
+                    <TableCell>
+                      {p.colorVariants && p.colorVariants.length > 0 ? (
+                        <div className="flex gap-1">
+                          {p.colorVariants.slice(0, 3).map(cv => (
+                            <div key={cv.id} className="w-4 h-4 rounded-full border" style={{ backgroundColor: cv.colorCode }} title={cv.name} />
+                          ))}
+                          {p.colorVariants.length > 3 && <span className="text-xs text-muted-foreground">+{p.colorVariants.length - 3}</span>}
+                        </div>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-between gap-3 rounded-xl border bg-card/70 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${isProductActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                          <span className={`text-xs font-medium ${isProductActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                            {isProductActive ? 'Đang bán' : 'Đã ẩn'}
+                          </span>
+                        </div>
+                        {isToggling ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        ) : (
+                          <Switch
+                            checked={isProductActive}
+                            onCheckedChange={() => handleToggleProductActive(p)}
+                            aria-label={isProductActive ? "Tắt sản phẩm" : "Bật sản phẩm"}
+                          />
+                        )}
                       </div>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card/70 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2.5 w-2.5 rounded-full ${isProductActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                        <span className={`text-xs font-medium ${isProductActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                          {isProductActive ? 'Đang bán' : 'Đã ẩn'}
-                        </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleViewDetail(p.id)} title="Xem chi tiết">
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(p)} title="Chỉnh sửa">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)} title="Xóa">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-                      {isToggling ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <Switch
-                          checked={isProductActive}
-                          onCheckedChange={() => handleToggleProductActive(p)}
-                          aria-label={isProductActive ? "Tắt sản phẩm" : "Bật sản phẩm"}
-                        />
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleViewDetail(p.id)} title="Xem chi tiết">
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(p)} title="Chỉnh sửa">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)} title="Xóa">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
               {filtered.length === 0 && (
@@ -1478,7 +1494,7 @@ function ProductsTab({
                           </SelectContent>
                         </Select>
                         <Input className="flex-1" placeholder="Giá trị (VD: 8GB, Silicone, v.v...)" value={a.value} onChange={e => setEditAttributes(editAttributes.map(ea => ea.id === a.id ? { ...ea, value: e.target.value, _saved: false } : ea))} />
-                        
+
                         {isExisting && (
                           <Button variant={a._saved ? "outline" : "default"} size="sm" className="flex-shrink-0" onClick={() => handleUpdateAttribute(a)}>
                             Lưu
@@ -1487,7 +1503,7 @@ function ProductsTab({
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
                           if (isExisting) {
                             if (!confirm("Xóa thuộc tính này?")) return;
-                            try { await productAttributeApi.delete(a.id); toast({ title: "Thành công", description: "Đã xóa thuộc tính" }); } 
+                            try { await productAttributeApi.delete(a.id); toast({ title: "Thành công", description: "Đã xóa thuộc tính" }); }
                             catch { toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" }); return; }
                           }
                           setEditAttributes(editAttributes.filter(ea => ea.id !== a.id));
@@ -1524,7 +1540,7 @@ function ProductsTab({
                           </SelectContent>
                         </Select>
                         <Input className="flex-1" placeholder="Ghi chú (VD: Fit hoàn hảo, Hỗ trợ sạc nhanh...)" value={c.note || ''} onChange={e => setEditCompatibilities(editCompatibilities.map(ec => ec.id === c.id ? { ...ec, note: e.target.value, _saved: false } : ec))} />
-                        
+
                         {isExisting && (
                           <Button variant={c._saved ? "outline" : "default"} size="sm" className="flex-shrink-0" onClick={() => handleUpdateCompatibility(c)}>
                             Lưu
@@ -1533,7 +1549,7 @@ function ProductsTab({
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={async () => {
                           if (isExisting) {
                             if (!confirm("Xóa thiết bị tương thích này?")) return;
-                            try { await compatibilityApi.delete(c.id); toast({ title: "Thành công", description: "Đã xóa thiết bị tương thích" }); } 
+                            try { await compatibilityApi.delete(c.id); toast({ title: "Thành công", description: "Đã xóa thiết bị tương thích" }); }
                             catch { toast({ title: "Lỗi", description: "Không thể xóa", variant: "destructive" }); return; }
                           }
                           setEditCompatibilities(editCompatibilities.filter(ec => ec.id !== c.id));
@@ -1749,117 +1765,117 @@ const AdminProducts = () => {
               <TabsTrigger value="prodAttributes" className="text-xs py-2">Thuộc tính SP</TabsTrigger>
             </TabsList>
 
-        {/* === Brands === */}
-        <TabsContent value="brands">
-          <Card>
-            <CardContent className="pt-6">
-              <GenericCrudTab<Brand>
-                title="Thương hiệu"
-                searchField="name"
-                columns={[
-                  { key: 'name', label: 'Tên' },
-                  { key: 'description', label: 'Mô tả' },
-                  { key: 'logoUrl', label: 'Logo URL', render: (b) => b.logoUrl ? <img src={b.logoUrl} className="w-8 h-8 rounded" onError={e => (e.currentTarget.style.display = 'none')} /> : '-' },
-                ]}
-                fields={[
-                  { key: 'name', label: 'Tên thương hiệu', type: 'text', required: true },
-                  { key: 'description', label: 'Mô tả', type: 'textarea' },
-                  { key: 'logoUrl', label: 'URL Logo', type: 'text', placeholder: 'https://...' },
-                ]}
-                fetchAll={() => brandService.getAll()}
-                onCreate={(data) => brandService.create(data)}
-                onUpdate={(id, data) => brandService.update(id, data)}
-                onDelete={(id) => brandService.delete(id)}
-                getFormDefaults={() => ({ name: '', description: '', logoUrl: '' })}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === Brands === */}
+            <TabsContent value="brands">
+              <Card>
+                <CardContent className="pt-6">
+                  <GenericCrudTab<Brand>
+                    title="Thương hiệu"
+                    searchField="name"
+                    columns={[
+                      { key: 'name', label: 'Tên' },
+                      { key: 'description', label: 'Mô tả' },
+                      { key: 'logoUrl', label: 'Logo URL', render: (b) => b.logoUrl ? <img src={b.logoUrl} className="w-8 h-8 rounded" onError={e => (e.currentTarget.style.display = 'none')} /> : '-' },
+                    ]}
+                    fields={[
+                      { key: 'name', label: 'Tên thương hiệu', type: 'text', required: true },
+                      { key: 'description', label: 'Mô tả', type: 'textarea' },
+                      { key: 'logoUrl', label: 'URL Logo', type: 'text', placeholder: 'https://...' },
+                    ]}
+                    fetchAll={() => brandService.getAll()}
+                    onCreate={(data) => brandService.create(data)}
+                    onUpdate={(id, data) => brandService.update(id, data)}
+                    onDelete={(id) => brandService.delete(id)}
+                    getFormDefaults={() => ({ name: '', description: '', logoUrl: '' })}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {/* === Categories === */}
-        <TabsContent value="categories">
-          <Card>
-            <CardContent className="pt-6">
-              <CategoriesTab />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === Categories === */}
+            <TabsContent value="categories">
+              <Card>
+                <CardContent className="pt-6">
+                  <CategoriesTab />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {/* === Devices === */}
-        <TabsContent value="devices">
-          <Card>
-            <CardContent className="pt-6">
-              <GenericCrudTab<ApiDevice>
-                title="Thiết bị"
-                searchField="name"
-                columns={[
-                  { key: 'name', label: 'Tên' },
-                  { key: 'description', label: 'Mô tả' },
-                ]}
-                fields={[
-                  { key: 'name', label: 'Tên thiết bị', type: 'text', required: true },
-                  { key: 'description', label: 'Mô tả', type: 'textarea', required: true },
-                ]}
-                fetchAll={() => deviceService.getAll()}
-                onCreate={(data) => deviceService.create(data)}
-                onUpdate={(id, data) => deviceService.update(id, data)}
-                onDelete={(id) => deviceService.delete(id)}
-                getFormDefaults={() => ({ name: '', description: '' })}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === Devices === */}
+            <TabsContent value="devices">
+              <Card>
+                <CardContent className="pt-6">
+                  <GenericCrudTab<ApiDevice>
+                    title="Thiết bị"
+                    searchField="name"
+                    columns={[
+                      { key: 'name', label: 'Tên' },
+                      { key: 'description', label: 'Mô tả' },
+                    ]}
+                    fields={[
+                      { key: 'name', label: 'Tên thiết bị', type: 'text', required: true },
+                      { key: 'description', label: 'Mô tả', type: 'textarea', required: true },
+                    ]}
+                    fetchAll={() => deviceService.getAll()}
+                    onCreate={(data) => deviceService.create(data)}
+                    onUpdate={(id, data) => deviceService.update(id, data)}
+                    onDelete={(id) => deviceService.delete(id)}
+                    getFormDefaults={() => ({ name: '', description: '' })}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {/* === Attributes === */}
-        <TabsContent value="attributes">
-          <Card>
-            <CardContent className="pt-6">
-              <GenericCrudTab<ApiAttribute>
-                title="Thuộc tính"
-                searchField="name"
-                columns={[
-                  { key: 'name', label: 'Tên' },
-                  { key: 'dataType', label: 'Đơn vị' },
-                ]}
-                fields={[
-                  { key: 'name', label: 'Tên thuộc tính', type: 'text', required: true },
-                  { key: 'dataType', label: 'Đơn vị', type: 'text', required: true, placeholder: 'VD: inch, mm, mAh, gram...' },
-                ]}
-                fetchAll={() => attributeService.getAll()}
-                onCreate={(data) => attributeService.create(data)}
-                onUpdate={(id, data) => attributeService.update(id, data)}
-                onDelete={(id) => attributeService.delete(id)}
-                getFormDefaults={() => ({ name: '', dataType: '' })}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === Attributes === */}
+            <TabsContent value="attributes">
+              <Card>
+                <CardContent className="pt-6">
+                  <GenericCrudTab<ApiAttribute>
+                    title="Thuộc tính"
+                    searchField="name"
+                    columns={[
+                      { key: 'name', label: 'Tên' },
+                      { key: 'dataType', label: 'Đơn vị' },
+                    ]}
+                    fields={[
+                      { key: 'name', label: 'Tên thuộc tính', type: 'text', required: true },
+                      { key: 'dataType', label: 'Đơn vị', type: 'text', required: true, placeholder: 'VD: inch, mm, mAh, gram...' },
+                    ]}
+                    fetchAll={() => attributeService.getAll()}
+                    onCreate={(data) => attributeService.create(data)}
+                    onUpdate={(id, data) => attributeService.update(id, data)}
+                    onDelete={(id) => attributeService.delete(id)}
+                    getFormDefaults={() => ({ name: '', dataType: '' })}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {/* === ProductCompatibility === */}
-        <TabsContent value="compatibility">
-          <Card>
-            <CardContent className="pt-6">
-              <ProductCompatibilityTab
-                products={products}
-                devices={devices}
-                allCompatibilities={compatibilities}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === ProductCompatibility === */}
+            <TabsContent value="compatibility">
+              <Card>
+                <CardContent className="pt-6">
+                  <ProductCompatibilityTab
+                    products={products}
+                    devices={devices}
+                    allCompatibilities={compatibilities}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {/* === ProductAttributes === */}
-        <TabsContent value="prodAttributes">
-          <Card>
-            <CardContent className="pt-6">
-              <ProductAttributesTab
-                products={products}
-                attributes={attributes}
-                allAttributes={productAttributes}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* === ProductAttributes === */}
+            <TabsContent value="prodAttributes">
+              <Card>
+                <CardContent className="pt-6">
+                  <ProductAttributesTab
+                    products={products}
+                    attributes={attributes}
+                    allAttributes={productAttributes}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </TabsContent>
       </Tabs>
