@@ -11,7 +11,7 @@ async function request<T>(
   path: string,
   { body, headers, ...options }: RequestOptions = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const url = `${BASE_URL}${path}`;
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
