@@ -26,6 +26,10 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
     }).format(price);
   };
 
+  const firstVariant = product.colorVariants && product.colorVariants.length > 0 ? product.colorVariants[0] : null;
+  const displayPrice = firstVariant?.price ?? product.price;
+  const displayDiscount = firstVariant?.discount ?? product.discount ?? 0;
+
   const calculateDiscountedPrice = (originalPrice: number) => {
     if (!promotion) return originalPrice;
     if (promotion.isPercentage) {
@@ -34,8 +38,15 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
     return originalPrice - promotion.discountValue;
   };
 
-  const discountedPrice = calculateDiscountedPrice(product.price);
-  const hasPromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < product.price);
+  const hasPromotion = promotion && (promotion.isPercentage ? promotion.discountValue < 100 : promotion.discountValue < displayPrice);
+  
+  const finalPrice = hasPromotion 
+    ? calculateDiscountedPrice(displayPrice) 
+    : (displayDiscount > 0 ? displayPrice * (1 - displayDiscount / 100) : displayPrice);
+    
+  const strikethroughPrice = hasPromotion 
+    ? displayPrice 
+    : (displayDiscount > 0 ? displayPrice : product.originalPrice);
 
   // Consider out of stock if all variants have stockQuantity defined and <= 0.
   // If colorVariants is empty, we assume it's out of stock if we are strictly using variant stock.
@@ -64,8 +75,8 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
         {product.isBestseller && (
           <Badge className="bg-foreground text-background">Bán chạy</Badge>
         )}
-        {product.discount && !promotion && (
-          <Badge variant="destructive">-{product.discount}%</Badge>
+        {displayDiscount > 0 && !promotion && (
+          <Badge variant="destructive">-{displayDiscount}%</Badge>
         )}
         {promotion && (
           <Badge variant="destructive" className="flex items-center gap-1">
@@ -182,16 +193,11 @@ const ProductCard = ({ product, onQuickView, onAddToCart }: ProductCardProps) =>
         {/* Price */}
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-bold text-primary">
-            {formatPrice(hasPromotion ? discountedPrice : product.price)}
+            {formatPrice(finalPrice)}
           </span>
-          {hasPromotion && (
+          {strikethroughPrice && (
             <span className="text-sm text-muted-foreground line-through">
-              {formatPrice(product.price)}
-            </span>
-          )}
-          {!hasPromotion && product.originalPrice && (
-            <span className="text-sm text-muted-foreground line-through">
-              {formatPrice(product.originalPrice)}
+              {formatPrice(strikethroughPrice)}
             </span>
           )}
         </div>

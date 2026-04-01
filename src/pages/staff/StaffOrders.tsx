@@ -45,7 +45,7 @@ const normalizeStatus = (status?: string): Order['status'] => {
   return 'pending';
 };
 
-const AdminOrders = () => {
+const StaffOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -112,6 +112,8 @@ const AdminOrders = () => {
       order.id.toLowerCase().includes(searchTerm.toLowerCase());
     return matchSearch;
   });
+
+
 
   const handleDelete = async (orderId: string) => {
     if (!confirm("Bạn có chắc muốn xóa đơn hàng này?")) return;
@@ -306,4 +308,4 @@ const AdminOrders = () => {
   );
 };
 
-export default AdminOrders;
+export default StaffOrders;
