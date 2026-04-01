@@ -178,10 +178,18 @@ const BuyNowConfirm = () => {
       return;
     }
 
+    if (!selectedAddressId) {
+      toast.error("Vui lòng chọn địa chỉ giao hàng");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const requestBody = {
+      const requestBody: import("@/services/OrderService").CreateOrderRequest = {
         accountId: user.id,
+        receiverName: recipientName,
+        receiverPhone: recipientPhone,
+        addressId: selectedAddressId,
         orderItems: items.map((item) => ({
           variantId: item.variantId || "",
           quantity: item.quantity,

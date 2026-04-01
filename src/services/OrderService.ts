@@ -9,6 +9,9 @@ export interface OrderItem {
 
 export interface CreateOrderRequest {
   accountId: string;
+  receiverName: string;
+  receiverPhone: string;
+  addressId: string;
   orderItems: OrderItem[];
 }
 

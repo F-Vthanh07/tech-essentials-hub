@@ -359,6 +359,9 @@ const Checkout = () => {
         const { orderService } = await import('@/services/OrderService');
         const order = await orderService.create({
           accountId,
+          receiverName: formData.fullName,
+          receiverPhone: formData.phone,
+          addressId: selectedAddressId || "",
           orderItems,
         });
 
