@@ -8,6 +8,9 @@ export interface SavedAddress {
   ward?: string;
   address: string;
   isDefault?: boolean;
+  provinceCode?: string;
+  districtCode?: string;
+  wardCode?: string;
 }
 
 export interface User {

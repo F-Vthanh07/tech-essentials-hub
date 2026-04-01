@@ -18,6 +18,9 @@ import { SavedAddress } from "@/types/user";
 import { useCart } from "@/contexts/CartContext";
 import { Order } from "@/types/order";
 import { generateOrderNumber, prependStoredOrder, updateStoredOrder } from "@/lib/orderStorage";
+import { addressService } from "@/services/AddressService";
+import { VietnamProvince, VietnamDistrict, VietnamWard, vietnamLocationService } from "@/services/VietnamLocationService";
+import { AddressFormDialog } from "@/components/address/AddressFormDialog";
 
 interface CartItem extends Product {
   quantity: number;
@@ -30,10 +33,6 @@ const paymentMethods = [
   { id: "bank", name: "Chuyển khoản ngân hàng", icon: "building", description: "Chuyển khoản qua tài khoản ngân hàng" },
   { id: "momo", name: "Ví MoMo", icon: "wallet", description: "Thanh toán qua ví điện tử MoMo" },
   { id: "vnpay", name: "VNPay", icon: "credit", description: "Thanh toán qua cổng VNPay" },
-];
-
-const provinces = [
-  "Hà Nội", "TP. Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ", "An Giang", "Bà Rịa - Vũng Tàu", "Bắc Giang", "Bắc Kạn", "Bạc Liêu"
 ];
 
 const Checkout = () => {
@@ -56,8 +55,11 @@ const Checkout = () => {
     phone: "",
     email: "",
     province: "",
+    provinceCode: "",
     district: "",
+    districtCode: "",
     ward: "",
+    wardCode: "",
     address: "",
     note: "",
   });
@@ -72,6 +74,48 @@ const Checkout = () => {
   const [saveThisAddress, setSaveThisAddress] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
+  // Vietnam location data
+  const [locationData, setLocationData] = useState<Record<string, VietnamProvince> | null>(null);
+  const [provinces, setProvinces] = useState<VietnamProvince[]>([]);
+  const [districts, setDistricts] = useState<VietnamDistrict[]>([]);
+  const [wards, setWards] = useState<VietnamWard[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+
+  // Address dialog
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
+
+  useEffect(() => {
+    setIsLoadingLocations(true);
+    vietnamLocationService.loadAll().then((data) => {
+      setLocationData(data);
+      setProvinces(vietnamLocationService.getProvinces(data));
+      setIsLoadingLocations(false);
+    });
+  }, []);
+
+  // Load districts when province changes
+  useEffect(() => {
+    if (!formData.province || !locationData) {
+      setDistricts([]);
+      setWards([]);
+      return;
+    }
+    setDistricts(vietnamLocationService.getDistricts(locationData, formData.province));
+    setFormData(prev => ({ ...prev, district: "", ward: "" }));
+    setWards([]);
+  }, [formData.province, locationData]);
+
+  // Load wards when district changes
+  useEffect(() => {
+    if (!formData.province || !formData.district || !locationData) {
+      setWards([]);
+      return;
+    }
+    setWards(vietnamLocationService.getWards(locationData, formData.province, formData.district));
+    setFormData(prev => ({ ...prev, ward: "" }));
+  }, [formData.province, formData.district, locationData]);
+
   // Helper functions for address management
   const getSavedAddresses = (): SavedAddress[] => {
     if (!user) return [];
@@ -80,39 +124,39 @@ const Checkout = () => {
 
   const saveAddress = (address: Omit<SavedAddress, 'id'>) => {
     if (!user) return;
-    
+
     const newAddress: SavedAddress = {
       ...address,
       id: `addr_${Date.now()}`,
     };
-    
+
     const currentAddresses = user.savedAddresses || [];
-    
+
     let updatedAddresses = currentAddresses;
     if (address.isDefault) {
       updatedAddresses = currentAddresses.map(addr => ({ ...addr, isDefault: false }));
     }
-    
+
     if (updatedAddresses.length === 0) {
       newAddress.isDefault = true;
     }
-    
+
     updatedAddresses.push(newAddress);
-    
+
     const updatedUser = { ...user, savedAddresses: updatedAddresses };
     setAuth(updatedUser, token);
   };
 
   const deleteAddress = (addressId: string) => {
     if (!user) return;
-    
+
     const currentAddresses = user.savedAddresses || [];
     const updatedAddresses = currentAddresses.filter(addr => addr.id !== addressId);
-    
+
     if (updatedAddresses.length > 0 && !updatedAddresses.some(addr => addr.isDefault)) {
       updatedAddresses[0].isDefault = true;
     }
-    
+
     const updatedUser = { ...user, savedAddresses: updatedAddresses };
     setAuth(updatedUser, token);
   };
@@ -133,13 +177,19 @@ const Checkout = () => {
   }, [user]);
 
   const loadAddress = (address: SavedAddress) => {
+    const provinceName = address.province || (address.provinceCode ? getProvinceName(address.provinceCode) : "");
+    const districtName = address.district || (address.provinceCode && address.districtCode ? getDistrictName(address.provinceCode, address.districtCode) : "");
+    const wardName = address.ward || (address.provinceCode && address.districtCode && address.wardCode ? getWardName(address.provinceCode, address.districtCode, address.wardCode) : "");
     setFormData({
       fullName: address.fullName,
       phone: address.phone,
       email: address.email || "",
-      province: address.province,
-      district: address.district,
-      ward: address.ward || "",
+      province: provinceName,
+      provinceCode: address.provinceCode || "",
+      district: districtName,
+      districtCode: address.districtCode || "",
+      ward: wardName,
+      wardCode: address.wardCode || "",
       address: address.address,
       note: "",
     });
@@ -200,11 +250,82 @@ const Checkout = () => {
   });
 
   const handleInputChange = (field: string, value: string) => {
+    if (field === "province") {
+      setFormData(prev => ({
+        ...prev,
+        provinceCode: value,
+        province: locationData ? vietnamLocationService.getProvinceName(locationData, value) : value,
+        districtCode: "",
+        district: "",
+        wardCode: "",
+        ward: "",
+      }));
+      if (value && locationData) {
+        setDistricts(vietnamLocationService.getDistricts(locationData, value));
+      } else {
+        setDistricts([]);
+      }
+      setWards([]);
+      return;
+    }
+    if (field === "district") {
+      setFormData(prev => ({
+        ...prev,
+        districtCode: value,
+        district: locationData ? vietnamLocationService.getDistrictName(locationData, prev.provinceCode, value) : value,
+        wardCode: "",
+        ward: "",
+      }));
+      if (value && locationData) {
+        setWards(vietnamLocationService.getWards(locationData, formData.provinceCode, value));
+      } else {
+        setWards([]);
+      }
+      return;
+    }
+    if (field === "ward") {
+      setFormData(prev => ({
+        ...prev,
+        wardCode: value,
+        ward: locationData ? vietnamLocationService.getWardName(locationData, prev.provinceCode, prev.districtCode, value) : value,
+      }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCompanyInfoChange = (field: string, value: string) => {
     setCompanyInfo(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleOpenAddAddress = () => {
+    setEditingAddress(null);
+    setIsAddressDialogOpen(true);
+  };
+
+  const handleEditAddress = (address: SavedAddress) => {
+    setEditingAddress(address);
+    setIsAddressDialogOpen(true);
+  };
+
+  const handleAddressSaved = (savedAddress: SavedAddress) => {
+    const currentAddresses = user?.savedAddresses || [];
+    const exists = currentAddresses.find(a => a.id === savedAddress.id);
+    let updatedAddresses: SavedAddress[];
+    if (exists) {
+      updatedAddresses = currentAddresses.map(a => a.id === savedAddress.id ? savedAddress : a);
+    } else {
+      updatedAddresses = savedAddress.isDefault
+        ? [...currentAddresses.map(a => ({ ...a, isDefault: false })), savedAddress]
+        : [...currentAddresses, savedAddress];
+    }
+    if (user) {
+      setAuth({ ...user, savedAddresses: updatedAddresses }, token);
+    }
+    loadAddress(savedAddress);
+    setSelectedAddressId(savedAddress.id);
+    setSaveThisAddress(false);
+    toast.success(savedAddress.id === editingAddress?.id ? "Cập nhật địa chỉ thành công!" : "Đã lưu địa chỉ giao hàng");
   };
 
   const handleSubmit = async () => {
@@ -224,25 +345,9 @@ const Checkout = () => {
       return;
     }
 
-    // Save address if user is logged in and wants to save
-    if (user && saveThisAddress) {
-      saveAddress({
-        fullName: formData.fullName,
-        phone: formData.phone,
-        email: formData.email || undefined,
-        province: formData.province,
-        district: formData.district,
-        ward: formData.ward || undefined,
-        address: formData.address,
-        isDefault: savedAddresses.length === 0,
-      });
-      toast.success("Đã lưu địa chỉ giao hàng");
-    }
-
     setIsSubmitting(true);
 
     try {
-      // Build order items from cart
       const orderItems = cartItems.map(item => ({
         variantId: (item as any).variantId || item.id,
         quantity: item.quantity,
@@ -251,7 +356,6 @@ const Checkout = () => {
       const accountId = user?.id || '';
 
       if (accountId && orderItems.length > 0) {
-        // Create order via API
         const { orderService } = await import('@/services/OrderService');
         const order = await orderService.create({
           accountId,
@@ -261,7 +365,6 @@ const Checkout = () => {
         const storedOrder = buildStoredOrder(order.id);
         prependStoredOrder(storedOrder);
 
-        // If payment method is bank transfer, create PayOS payment
         if (paymentMethod === 'bank' || paymentMethod === 'vnpay' || paymentMethod === 'momo') {
           try {
             const { paymentService } = await import('@/services/PaymentService');
@@ -311,7 +414,12 @@ const Checkout = () => {
     setSaveThisAddress(false);
   };
 
-  const handleDeleteAddress = (addressId: string) => {
+  const handleDeleteAddress = async (addressId: string) => {
+    try {
+      await addressService.delete(addressId);
+    } catch {
+      // Continue with local removal
+    }
     deleteAddress(addressId);
     if (selectedAddressId === addressId) {
       setSelectedAddressId(null);
@@ -320,8 +428,11 @@ const Checkout = () => {
         phone: "",
         email: "",
         province: "",
+        provinceCode: "",
         district: "",
+        districtCode: "",
         ward: "",
+        wardCode: "",
         address: "",
         note: "",
       });
@@ -339,10 +450,28 @@ const Checkout = () => {
     }
   };
 
+  const getProvinceName = (code: string) => {
+    if (!locationData) return code;
+    return vietnamLocationService.getProvinceName(locationData, code) || code;
+  };
+
+  const getDistrictName = (provinceCode: string, districtCode: string) => {
+    if (!locationData) return districtCode;
+    return vietnamLocationService.getDistrictName(locationData, provinceCode, districtCode) || districtCode;
+  };
+
+  const getWardName = (provinceCode: string, districtCode: string, wardCode: string) => {
+    if (!locationData) return wardCode;
+    return vietnamLocationService.getWardName(locationData, provinceCode, districtCode, wardCode) || wardCode;
+  };
+
+  const displayDistrictName = formData.district ? getDistrictName(formData.province, formData.district) : "";
+  const displayWardName = formData.ward ? getWardName(formData.province, formData.district, formData.ward) : "";
+
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <Header cartCount={0} onCartClick={() => {}} />
+        <Header />
         <div className="container mx-auto px-4 py-20 text-center">
           <div className="max-w-md mx-auto">
             <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mx-auto mb-6">
@@ -364,16 +493,9 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header cartCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)} onCartClick={() => {}} />
-      
-      <main className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
-          <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <ChevronRight className="w-4 h-4" />
-          <span className="text-foreground font-medium">Thanh toán</span>
-        </div>
+      <Header />
 
+      <main className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-secondary rounded-full transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -409,11 +531,7 @@ const Checkout = () => {
                         }
                       }}
                     >
-                      <RadioGroupItem
-                        value={address.id}
-                        checked={selectedAddressId === address.id}
-                        className="mt-1"
-                      />
+                      <RadioGroupItem value={address.id} className="mt-1" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{address.fullName}</span>
@@ -423,9 +541,25 @@ const Checkout = () => {
                         </div>
                         <p className="text-sm text-muted-foreground">{address.phone}</p>
                         <p className="text-sm text-muted-foreground">
-                          {address.address}, {address.ward && `${address.ward}, `}{address.district}, {address.province}
+                          {address.address}
+                          {address.ward ? `, ${address.ward}` : ""}
+                          {address.district ? `, ${address.district}` : ""}
+                          {address.province ? `, ${address.province}` : ""}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAddress(address);
+                        }}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -449,7 +583,7 @@ const Checkout = () => {
                 <Truck className="w-5 h-5 text-primary" />
                 {savedAddresses.length > 0 ? "Hoặc nhập địa chỉ mới" : "Thông tin giao hàng"}
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Họ và tên *</Label>
@@ -481,34 +615,75 @@ const Checkout = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="province">Tỉnh/Thành phố *</Label>
-                  <Select value={formData.province} onValueChange={(value) => handleInputChange("province", value)}>
+                  <Select
+                    value={formData.provinceCode}
+                    onValueChange={(value) => handleInputChange("province", value)}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Chọn tỉnh/thành phố" />
+                      <SelectValue placeholder={isLoadingLocations ? "Đang tải..." : "Chọn tỉnh/thành phố"} />
                     </SelectTrigger>
                     <SelectContent>
                       {provinces.map((province) => (
-                        <SelectItem key={province} value={province}>{province}</SelectItem>
+                        <SelectItem key={province.code} value={province.code}>
+                          {province.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="district">Quận/Huyện *</Label>
-                  <Input
-                    id="district"
-                    placeholder="Nhập quận/huyện"
-                    value={formData.district}
-                    onChange={(e) => handleInputChange("district", e.target.value)}
-                  />
+                  <Select
+                    value={formData.districtCode}
+                    onValueChange={(value) => handleInputChange("district", value)}
+                    disabled={!formData.province}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          !formData.province
+                            ? "Chọn tỉnh trước"
+                            : districts.length === 0
+                            ? "Đang tải..."
+                            : "Chọn quận/huyện"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {districts.map((district) => (
+                        <SelectItem key={district.code} value={district.code}>
+                          {district.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ward">Phường/Xã</Label>
-                  <Input
-                    id="ward"
-                    placeholder="Nhập phường/xã"
-                    value={formData.ward}
-                    onChange={(e) => handleInputChange("ward", e.target.value)}
-                  />
+                  <Select
+                    value={formData.wardCode}
+                    onValueChange={(value) => handleInputChange("ward", value)}
+                    disabled={!formData.district}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          !formData.district
+                            ? "Chọn quận trước"
+                            : wards.length === 0
+                            ? "Đang tải..."
+                            : "Chọn phường/xã"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wards.map((ward) => (
+                        <SelectItem key={ward.code} value={ward.code}>
+                          {ward.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="address">Địa chỉ chi tiết *</Label>
@@ -555,7 +730,7 @@ const Checkout = () => {
                 <CreditCard className="w-5 h-5 text-primary" />
                 Phương thức thanh toán
               </h2>
-              
+
               <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="space-y-3">
                 {paymentMethods.map((method) => (
                   <div
@@ -591,7 +766,7 @@ const Checkout = () => {
                   Xuất hóa đơn công ty
                 </Label>
               </div>
-              
+
               {isCompanyInvoice && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
                   <div className="space-y-2">
@@ -630,7 +805,7 @@ const Checkout = () => {
           <div className="lg:col-span-1">
             <div className="bg-card rounded-xl p-6 border border-border sticky top-4">
               <h2 className="text-lg font-semibold mb-4">Đơn hàng của bạn</h2>
-              
+
               {/* Cart Items */}
               <div className="space-y-4 max-h-64 overflow-y-auto mb-4">
                 {cartItems.map((item) => (
@@ -703,6 +878,15 @@ const Checkout = () => {
       </main>
 
       <Footer />
+
+      {/* Reusable Address Form Dialog */}
+      <AddressFormDialog
+        open={isAddressDialogOpen}
+        onOpenChange={setIsAddressDialogOpen}
+        userId={user?.id}
+        initialAddress={editingAddress}
+        onSaved={handleAddressSaved}
+      />
     </div>
   );
 };
