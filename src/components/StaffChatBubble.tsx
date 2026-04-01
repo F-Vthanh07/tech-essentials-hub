@@ -121,21 +121,6 @@ const StaffChatBubble = () => {
       setIsRoomClosed(false);
       try {
         offHandlers.push(
-          chatHub.on("RoomCreated", (room) => {
-            if (isCancelled) return;
-            setRoomId(room.id);
-            hydrateFromRoom(room);
-            chatHub.joinRoomGroup(room.id).catch(() => {});
-          })
-        );
-        offHandlers.push(
-          chatHub.on("RoomHistory", (room) => {
-            if (isCancelled) return;
-            setRoomId(room.id);
-            hydrateFromRoom(room);
-          })
-        );
-        offHandlers.push(
           chatHub.on("ReceiveMessage", (msg) => {
             if (isCancelled) return;
             setMessages((prev) => [...prev, mapRoomMessage(msg)]);
@@ -169,9 +154,14 @@ const StaffChatBubble = () => {
 
         if (openRoom) {
           setRoomId(openRoom.id);
-          await chatHub.joinRoomGroup(openRoom.id);
+          const roomDetail = await chatRoomService.getRoomDetails(openRoom.id).catch(() => null);
+          if (roomDetail) hydrateFromRoom(roomDetail);
+          await chatHub.joinRoom(openRoom.id);
         } else {
-          await chatHub.createRoom();
+          const created = await chatRoomService.createRoom();
+          setRoomId(created.id);
+          hydrateFromRoom(created);
+          await chatHub.joinRoom(created.id);
         }
       } catch (err: any) {
         console.warn("chat init failed", err);
@@ -194,16 +184,16 @@ const StaffChatBubble = () => {
     if (!trimmed) return;
     if (!isAvailable) return;
 
-    const optimistic: ChatMessage = {
-      id: `local-${Date.now()}`,
-      sender: "user",
-      content: trimmed,
-      time: formatTime(new Date()),
-    };
-    setMessages((prev) => [...prev, optimistic]);
     setInputValue("");
 
     if (mode === "ai" || !token) {
+      const optimistic: ChatMessage = {
+        id: `local-${Date.now()}`,
+        sender: "user",
+        content: trimmed,
+        time: formatTime(new Date()),
+      };
+      setMessages((prev) => [...prev, optimistic]);
       try {
         const res = await chatboxService.send({ message: trimmed, language: "vi" });
         if (!res?.isSuccessful) {
@@ -236,7 +226,7 @@ const StaffChatBubble = () => {
     }
 
     try {
-      await chatHub.customerSendMessage(roomId, trimmed);
+      await chatHub.sendMessage(roomId, trimmed);
     } catch (err) {
       console.warn("customer send failed", err);
       toast.error("Khong the gui tin nhan");

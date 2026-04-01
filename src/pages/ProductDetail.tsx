@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingContact from "@/components/FloatingContact";
@@ -30,6 +31,9 @@ import { Product, ColorVariant } from "@/types/product";
 import { toast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 import { usePromotions } from "@/contexts/PromotionContext";
+import { ratingService, Rating } from "@/services/RatingService";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Extended product data with gallery and description
 const getProductDetails = (product: Product) => {
@@ -64,12 +68,22 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { getPromotionByProductId } = usePromotions();
+  const { user, token } = useAuth();
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
   const [product, setProduct] = useState<Product | null | undefined>(undefined);
   const [allProducts, setAllProducts] = useState<Product[]>(products);
   const [isLoading, setIsLoading] = useState(true);
+  const [ratings, setRatings] = useState<Rating[]>([]);
+  const [isRatingsLoading, setIsRatingsLoading] = useState(false);
+  const [newStar, setNewStar] = useState<number>(5);
+  const [newComment, setNewComment] = useState<string>("");
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
+  const [editStar, setEditStar] = useState<number>(5);
+  const [editComment, setEditComment] = useState<string>("");
+  const [isUpdatingRating, setIsUpdatingRating] = useState(false);
 
   const promotion = product ? getPromotionByProductId(product.id) : undefined;
 
@@ -114,6 +128,118 @@ const ProductDetail = () => {
       setSelectedColor(null);
     }
   }, [product]);
+
+  useEffect(() => {
+    const fetchRatings = async () => {
+      if (!id) return;
+      setIsRatingsLoading(true);
+      try {
+        const all = await ratingService.getAll();
+        setRatings((all || []).filter((r) => r.productId === id));
+      } catch (err) {
+        console.warn("Failed to fetch ratings", err);
+        setRatings([]);
+      } finally {
+        setIsRatingsLoading(false);
+      }
+    };
+    void fetchRatings();
+  }, [id]);
+
+  const handleSubmitRating = async () => {
+    if (!id) return;
+    if (!user?.id || !token) {
+      toast({
+        title: "Vui lòng đăng nhập",
+        description: "Bạn cần đăng nhập để gửi đánh giá.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
+    const star = Math.max(1, Math.min(5, Number(newStar) || 0));
+    const comment = newComment.trim();
+    if (!comment) {
+      toast({ title: "Thiếu nội dung", description: "Vui lòng nhập nhận xét." });
+      return;
+    }
+
+    setIsSubmittingRating(true);
+    try {
+      const created = await ratingService.create({
+        productId: id,
+        accountId: user.id,
+        star,
+        comment,
+      });
+      setRatings((prev) => [created, ...prev]);
+      setNewStar(5);
+      setNewComment("");
+      toast({ title: "Thành công", description: "Đã gửi đánh giá của bạn." });
+    } catch (err) {
+      console.warn("Create rating failed", err);
+      toast({
+        title: "Lỗi",
+        description: "Không thể gửi đánh giá. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
+
+  const startEditRating = (rating: Rating) => {
+    if (!user?.id || rating.accountId !== user.id) return;
+    setEditingRatingId(rating.id);
+    setEditStar(Math.max(1, Math.min(5, rating.star || 5)));
+    setEditComment(rating.comment || "");
+  };
+
+  const cancelEditRating = () => {
+    setEditingRatingId(null);
+    setEditStar(5);
+    setEditComment("");
+  };
+
+  const handleUpdateRating = async (rating: Rating) => {
+    if (!user?.id || !token) {
+      navigate("/auth");
+      return;
+    }
+    if (rating.accountId !== user.id) {
+      toast({
+        title: "Không hợp lệ",
+        description: "Bạn chỉ có thể sửa đánh giá của chính mình.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const star = Math.max(1, Math.min(5, Number(editStar) || 0));
+    const comment = editComment.trim();
+    if (!comment) {
+      toast({ title: "Thiếu nội dung", description: "Vui lòng nhập nhận xét." });
+      return;
+    }
+
+    setIsUpdatingRating(true);
+    try {
+      const updated = await ratingService.update(rating.id, { star, comment });
+      setRatings((prev) => prev.map((r) => (r.id === rating.id ? { ...r, ...updated } : r)));
+      cancelEditRating();
+      toast({ title: "Thành công", description: "Đã cập nhật đánh giá." });
+    } catch (err) {
+      console.warn("Update rating failed", err);
+      toast({
+        title: "Lỗi",
+        description: "Không thể cập nhật đánh giá.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingRating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -576,7 +702,7 @@ const ProductDetail = () => {
                 value="reviews"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
               >
-                Đánh giá ({product.reviewCount})
+                Đánh giá ({ratings.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value="description" className="pt-6">
@@ -616,17 +742,154 @@ const ProductDetail = () => {
               </div>
             </TabsContent>
             <TabsContent value="reviews" className="pt-6">
-              <div className="text-center py-16">
-                <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-                  <Star className="w-10 h-10 text-amber-400" />
+              <div className="grid gap-8 lg:grid-cols-[1fr,360px]">
+                <div className="space-y-4">
+                  {isRatingsLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : ratings.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                        <Star className="w-10 h-10 text-amber-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">Chưa có đánh giá nào</h3>
+                      <p className="text-muted-foreground mb-1">
+                        Hãy là người đầu tiên chia sẻ trải nghiệm của bạn
+                      </p>
+                      <p className="text-muted-foreground text-sm">
+                        Đánh giá của bạn giúp người mua khác đưa ra quyết định tốt hơn
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {ratings.map((r) => (
+                        <div key={r.id} className="rounded-xl border border-border p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">
+                              {r.accountId?.slice(0, 8) || "Người dùng"}
+                            </p>
+                            {editingRatingId === r.id ? (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={5}
+                                value={editStar}
+                                onChange={(e) => setEditStar(Number(e.target.value))}
+                                className="w-20"
+                                disabled={isUpdatingRating}
+                              />
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-4 h-4 ${
+                                      i < (r.star || 0)
+                                        ? "text-amber-400 fill-amber-400"
+                                        : "text-muted-foreground"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {editingRatingId === r.id ? (
+                            <div className="mt-2 space-y-2">
+                              <Textarea
+                                value={editComment}
+                                onChange={(e) => setEditComment(e.target.value)}
+                                disabled={isUpdatingRating}
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={cancelEditRating}
+                                  disabled={isUpdatingRating}
+                                >
+                                  Hủy
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => void handleUpdateRating(r)}
+                                  disabled={isUpdatingRating}
+                                >
+                                  {isUpdatingRating ? "Đang lưu..." : "Lưu"}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-muted-foreground mt-2 whitespace-pre-line">
+                                {r.comment}
+                              </p>
+                              {user?.id === r.accountId && (
+                                <div className="mt-3 flex justify-end">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => startEditRating(r)}
+                                  >
+                                    Sửa đánh giá
+                                  </Button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Chưa có đánh giá nào</h3>
-                <p className="text-muted-foreground mb-1">Hãy là người đầu tiên chia sẻ trải nghiệm của bạn</p>
-                <p className="text-muted-foreground text-sm mb-6">Đánh giá của bạn giúp người mua khác đưa ra quyết định tốt hơn</p>
-                <Button variant="outline" className="gap-2">
-                  <Star className="w-4 h-4" />
-                  Viết đánh giá đầu tiên
-                </Button>
+
+                <div className="rounded-xl border border-border p-5 space-y-4 h-fit">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Viết đánh giá</h3>
+                    {!token && (
+                      <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>
+                        Đăng nhập
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">Số sao (1-5)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={newStar}
+                      onChange={(e) => setNewStar(Number(e.target.value))}
+                      disabled={!token || isSubmittingRating}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">Nhận xét</label>
+                    <Textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
+                      disabled={!token || isSubmittingRating}
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={() => void handleSubmitRating()}
+                    disabled={!token || isSubmittingRating}
+                  >
+                    {isSubmittingRating ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Đang gửi...
+                      </span>
+                    ) : (
+                      "Gửi đánh giá"
+                    )}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

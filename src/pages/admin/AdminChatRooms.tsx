@@ -77,31 +77,18 @@ const AdminChatRooms = () => {
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      void fetchActiveRooms();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     let offs: Array<() => void> = [];
     let cancelled = false;
 
     const setup = async () => {
       try {
-        offs.push(
-          chatHub.on("NewRoomAvailable", (room) => {
-            if (cancelled) return;
-            setRooms((prev) => {
-              if (prev.some((r) => r.id === room.id)) return prev;
-              return [room, ...prev];
-            });
-            toast.info("Co phong chat moi");
-          })
-        );
-
-        offs.push(
-          chatHub.on("RoomJoined", (room) => {
-            if (cancelled) return;
-            setSelectedRoom(room);
-            setIsDetailOpen(true);
-            setIsJoining(false);
-          })
-        );
-
         offs.push(
           chatHub.on("ReceiveMessage", (msg: ChatMessageResponse) => {
             if (cancelled) return;
@@ -160,7 +147,13 @@ const AdminChatRooms = () => {
   const handleJoinRoom = async (roomId: string) => {
     setIsJoining(true);
     try {
-      await chatHub.staffJoinRoom(roomId);
+      await chatRoomService.joinRoomByStaff(roomId);
+      const detail = await chatRoomService.getRoomDetails(roomId);
+      setSelectedRoom(detail);
+      setIsDetailOpen(true);
+      await chatHub.joinRoom(roomId);
+      await fetchActiveRooms();
+      setIsJoining(false);
     } catch (err) {
       console.warn("staff join failed", err);
       toast.error("Khong the nhan phong");
@@ -171,7 +164,10 @@ const AdminChatRooms = () => {
   const handleToggleAi = async () => {
     if (!selectedRoom) return;
     try {
-      await chatHub.toggleAi(selectedRoom.id, !selectedRoom.isAIEnabled);
+      await chatRoomService.toggleAi(selectedRoom.id, !selectedRoom.isAIEnabled);
+      setSelectedRoom((prev) =>
+        prev ? { ...prev, isAIEnabled: !prev.isAIEnabled } : prev
+      );
     } catch (err) {
       console.warn("toggle ai failed", err);
       toast.error("Khong the doi trang thai AI");
@@ -181,7 +177,9 @@ const AdminChatRooms = () => {
   const handleCloseRoom = async () => {
     if (!selectedRoom) return;
     try {
-      await chatHub.closeRoom(selectedRoom.id);
+      await chatRoomService.closeRoom(selectedRoom.id);
+      setRooms((prev) => prev.filter((r) => r.id !== selectedRoom.id));
+      setSelectedRoom((prev) => (prev ? { ...prev, status: "Closed" } : prev));
     } catch (err) {
       console.warn("close room failed", err);
       toast.error("Khong the dong phong");
@@ -196,12 +194,17 @@ const AdminChatRooms = () => {
 
     setReplyValue("");
     try {
-      await chatHub.staffSendMessage(selectedRoom.id, trimmed);
+      await chatHub.sendMessage(selectedRoom.id, trimmed);
     } catch (err) {
       console.warn("staff send failed", err);
       toast.error("Khong the gui tin nhan");
     }
   };
+
+  useEffect(() => {
+    if (isDetailOpen || !selectedRoom?.id) return;
+    void chatHub.leaveRoom(selectedRoom.id).catch(() => {});
+  }, [isDetailOpen, selectedRoom?.id]);
 
   return (
     <div className="space-y-6">

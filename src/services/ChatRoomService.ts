@@ -28,10 +28,15 @@ export type ChatRoomResponse = {
 };
 
 export const chatRoomService = {
+  createRoom: () => httpClient.post<ChatRoomResponse>("/api/chatroom"),
   getActiveRooms: () => httpClient.get<ChatRoomResponse[]>("/api/chatroom/active"),
   getMyRooms: () => httpClient.get<ChatRoomResponse[]>("/api/chatroom/my-rooms"),
   getRoomDetails: (roomId: string) =>
     httpClient.get<ChatRoomResponse>(`/api/chatroom/${roomId}`),
+  joinRoomByStaff: (roomId: string) =>
+    httpClient.post<ChatRoomResponse>(`/api/chatroom/${roomId}/join`),
+  leaveRoomByStaff: (roomId: string) =>
+    httpClient.post<{ message: string }>(`/api/chatroom/${roomId}/leave`),
   toggleAi: (roomId: string, enabled: boolean) =>
     httpClient.patch<{ roomId: string; isAIEnabled: boolean }>(
       `/api/chatroom/${roomId}/ai?enabled=${enabled}`
