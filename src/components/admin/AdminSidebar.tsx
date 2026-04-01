@@ -8,10 +8,12 @@ import {
   Menu,
   LogOut,
   Users,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -32,6 +34,20 @@ const AdminSidebar = () => {
     logout();
     navigate("/");
     toast.success("Đã đăng xuất");
+  };
+
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    const dark = saved === "dark" || document.documentElement.classList.contains("dark");
+    setIsDark(dark);
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    document.documentElement.classList.toggle("dark", newDark);
+    localStorage.setItem("theme", newDark ? "dark" : "light");
   };
 
   return (
@@ -90,6 +106,18 @@ const AdminSidebar = () => {
         >
           <LogOut className="h-5 w-5" />
           {!collapsed && <span>Đăng xuất</span>}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={toggleDarkMode}
+          className={cn(
+            "w-full justify-start gap-3 px-3 py-2 text-muted-foreground hover:text-foreground",
+            collapsed && "justify-center px-0"
+          )}
+          title={isDark ? "Chế độ sáng" : "Chế độ tối"}
+        >
+          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          {!collapsed && <span>{isDark ? 'Chế độ sáng' : 'Chế độ tối'}</span>}
         </Button>
         <NavLink 
           to="/" 

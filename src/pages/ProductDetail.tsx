@@ -733,13 +733,7 @@ const ProductDetail = () => {
                 value="description"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
               >
-                Mô tả sản phẩm
-              </TabsTrigger>
-              <TabsTrigger
-                value="specs"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
-              >
-                Thông số kỹ thuật
+                Chi tiết sản phẩm
               </TabsTrigger>
               <TabsTrigger
                 value="reviews"
@@ -749,39 +743,44 @@ const ProductDetail = () => {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="description" className="pt-6">
-              <div className="prose prose-gray max-w-none">
+              {/* Mô tả */}
+              <div className="prose prose-gray max-w-none mb-10">
+                <h3 className="text-xl font-bold mb-4">Mô tả sản phẩm</h3>
                 <div className="whitespace-pre-line text-muted-foreground leading-relaxed">
                   {productDetails.description}
                 </div>
               </div>
-            </TabsContent>
-            <TabsContent value="specs" className="pt-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex justify-between py-3 border-b border-border">
-                  <span className="text-muted-foreground">Thương hiệu</span>
-                  <span className="font-medium">{product.brand}</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-border">
-                  <span className="text-muted-foreground">Danh mục</span>
-                  <span className="font-medium capitalize">{product.category}</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-border">
-                  <span className="text-muted-foreground">Tương thích</span>
-                  <span className="font-medium">{product.device}</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-border">
-                  <span className="text-muted-foreground">Bảo hành</span>
-                  <span className="font-medium">12 tháng chính hãng</span>
-                </div>
-                {product.features?.map((feature, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between py-3 border-b border-border"
-                  >
-                    <span className="text-muted-foreground">Tính năng {index + 1}</span>
-                    <span className="font-medium">{feature}</span>
+
+              {/* Thông số kỹ thuật */}
+              <div>
+                <h3 className="text-xl font-bold mb-4">Thông số kỹ thuật</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex justify-between py-3 border-b border-border">
+                    <span className="text-muted-foreground">Thương hiệu</span>
+                    <span className="font-medium">{product.brand}</span>
                   </div>
-                ))}
+                  <div className="flex justify-between py-3 border-b border-border">
+                    <span className="text-muted-foreground">Danh mục</span>
+                    <span className="font-medium capitalize">{product.category}</span>
+                  </div>
+                  <div className="flex justify-between py-3 border-b border-border">
+                    <span className="text-muted-foreground">Tương thích</span>
+                    <span className="font-medium">{product.device}</span>
+                  </div>
+                  <div className="flex justify-between py-3 border-b border-border">
+                    <span className="text-muted-foreground">Bảo hành</span>
+                    <span className="font-medium">12 tháng chính hãng</span>
+                  </div>
+                  {product.features?.map((feature, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between py-3 border-b border-border"
+                    >
+                      <span className="text-muted-foreground">Tính năng {index + 1}</span>
+                      <span className="font-medium">{feature}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="reviews" className="pt-6">

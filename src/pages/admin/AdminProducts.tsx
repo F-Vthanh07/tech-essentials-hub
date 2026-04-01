@@ -85,10 +85,18 @@ function CategoriesTab() {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.slug) {
+    if (!formData.name) {
       toast({ title: "Lỗi", description: "Vui lòng điền đầy đủ thông tin", variant: "destructive" });
       return;
     }
+
+    // Auto-generate slug from name if empty
+    const autoSlug = formData.slug || formData.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
     const parentId = formData.parentId === '__none__' || !formData.parentId ? null : formData.parentId;
 
@@ -97,14 +105,14 @@ function CategoriesTab() {
       if (editingCategory) {
         await categoryService.update(editingCategory.id, {
           name: formData.name.trim(),
-          slug: formData.slug.trim(),
+          slug: autoSlug.trim(),
           parentId: parentId
         });
         toast({ title: "Thành công", description: "Đã cập nhật danh mục" });
       } else {
         await categoryService.create({
           name: formData.name.trim(),
-          slug: formData.slug.trim(),
+          slug: autoSlug.trim(),
           parentId: parentId
         });
         toast({ title: "Thành công", description: "Đã thêm danh mục mới" });
@@ -167,7 +175,6 @@ function CategoriesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Tên</TableHead>
-                <TableHead>Slug</TableHead>
                 <TableHead>Danh mục cha</TableHead>
                 <TableHead className="text-right w-[100px]">Thao tác</TableHead>
               </TableRow>
@@ -176,7 +183,6 @@ function CategoriesTab() {
               {filteredCategories.map((cat) => (
                 <TableRow key={cat.id}>
                   <TableCell className="font-medium">{cat.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{cat.slug || '-'}</TableCell>
                   <TableCell>{getParentName(cat.parentId)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -192,7 +198,7 @@ function CategoriesTab() {
               ))}
               {filteredCategories.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                     Không có danh mục nào
                   </TableCell>
                 </TableRow>
@@ -213,27 +219,16 @@ function CategoriesTab() {
               <Input
                 value={formData.name}
                 onChange={(e) => {
-                  setFormData({ ...formData, name: e.target.value });
-                  // Auto-generate slug if editing
-                  if (!editingCategory && !formData.slug) {
-                    const slug = e.target.value
-                      .toLowerCase()
-                      .normalize('NFD')
-                      .replace(/[\u0300-\u036f]/g, '')
-                      .replace(/[^a-z0-9]+/g, '-')
-                      .replace(/^-+|-+$/g, '');
-                    setFormData(prev => ({ ...prev, slug }));
-                  }
+                  const name = e.target.value;
+                  const slug = name
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  setFormData({ ...formData, name, slug });
                 }}
                 placeholder="VD: Ốp lưng iPhone"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Slug *</Label>
-              <Input
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                placeholder="vd: op-lung-iphone"
               />
             </div>
             <div className="grid gap-2">

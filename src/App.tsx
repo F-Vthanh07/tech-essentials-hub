@@ -34,7 +34,6 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminUsers from "./pages/admin/AdminUsers";
 
 import StaffLayout from "./components/staff/StaffLayout";
-import StaffDashboard from "./pages/staff/StaffDashboard";
 import StaffProducts from "./pages/staff/StaffProducts";
 import StaffOrders from "./pages/staff/StaffOrders";
 import StaffReports from "./pages/staff/StaffReports";
@@ -101,7 +100,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<StaffDashboard />} />
+                <Route index element={<StaffProducts />} />
                 <Route path="products" element={<StaffProducts />} />
                 <Route path="orders" element={<StaffOrders />} />
                 <Route path="custom-orders" element={<StaffCustomOrders />} />

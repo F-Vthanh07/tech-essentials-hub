@@ -249,11 +249,7 @@ const Header = () => {
                 Bản tin công nghệ
               </Button>
             </li>
-            <li>
-              <Button variant="ghost" className={`font-medium ${isActive('/support') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => navigate('/support')}>
-                Hỗ trợ
-              </Button>
-            </li>
+
           </ul>
         </div>
       </nav>
@@ -300,11 +296,7 @@ const Header = () => {
                   Bản tin công nghệ
                 </Button>
               </li>
-              <li>
-                <Button variant="ghost" className={`w-full justify-start font-medium ${isActive('/support') ? 'bg-primary/10 text-primary' : ''}`} onClick={() => { navigate('/support'); setIsMenuOpen(false); }}>
-                  Hỗ trợ
-                </Button>
-              </li>
+
             </ul>
           </div>
         </div>

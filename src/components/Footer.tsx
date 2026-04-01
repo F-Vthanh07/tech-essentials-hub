@@ -58,9 +58,8 @@ const Footer = () => {
 
           {/* Quick links */}
           <div>
-            <h4 className="font-semibold mb-4">Hỗ trợ</h4>
+            <h4 className="font-semibold mb-4">Chính sách</h4>
             <ul className="space-y-2 text-sm text-background/70">
-              <li><a href="#" className="hover:text-primary transition-colors">Hướng dẫn mua hàng</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Chính sách đổi trả</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Chính sách bảo hành</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Phương thức thanh toán</a></li>
