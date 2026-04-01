@@ -1,7 +1,7 @@
 
 // const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '';
-const BASE_URL = "https://localhost:7240";
-console.debug('[httpClient] base URL =', BASE_URL || '(relative)');
+export const API_BASE_URL = "https://localhost:7240";
+console.debug('[httpClient] base URL =', API_BASE_URL || '(relative)');
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: any;
@@ -11,7 +11,7 @@ async function request<T>(
   path: string,
   { body, headers, ...options }: RequestOptions = {}
 ): Promise<T> {
-  const url = `${BASE_URL}${path}`;
+  const url = `${API_BASE_URL}${path}`;
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -54,5 +54,6 @@ export const httpClient = {
   get: <T>(path: string) => request<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: any) => request<T>(path, { method: 'POST', body }),
   put: <T>(path: string, body?: any) => request<T>(path, { method: 'PUT', body }),
+  patch: <T>(path: string, body?: any) => request<T>(path, { method: 'PATCH', body }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };

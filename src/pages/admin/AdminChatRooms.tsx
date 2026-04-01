@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,112 +14,201 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Search, Trash2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageSquare, Search, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import { chatRoomService, ChatMessageResponse, ChatRoomResponse } from "@/services/ChatRoomService";
+import { chatHub } from "@/services/chatHub";
 
-type ChatRoomStatus = "open" | "closed";
-
-type ChatRoom = {
-  id: string;
-  name: string;
-  createdBy: string;
-  participants: number;
-  lastMessageAt: string;
-  status: ChatRoomStatus;
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("vi-VN");
 };
 
-const initialRooms: ChatRoom[] = [
-  {
-    id: "room-1",
-    name: "Ho tro don hang",
-    createdBy: "staff01",
-    participants: 3,
-    lastMessageAt: "01/04/2026 09:15",
-    status: "open",
-  },
-  {
-    id: "room-2",
-    name: "Tu van custom case",
-    createdBy: "staff02",
-    participants: 2,
-    lastMessageAt: "01/04/2026 08:40",
-    status: "open",
-  },
-  {
-    id: "room-3",
-    name: "Bao hanh phu kien",
-    createdBy: "staff03",
-    participants: 4,
-    lastMessageAt: "31/03/2026 17:55",
-    status: "closed",
-  },
-];
+const roomStatusLabel = (status: ChatRoomResponse["status"]) => {
+  if (status === "Waiting") return "Dang cho";
+  if (status === "HandledByStaff") return "Dang duoc staff xu ly";
+  return "Da dong";
+};
 
 const AdminChatRooms = () => {
-  const [rooms, setRooms] = useState<ChatRoom[]>(initialRooms);
+  const [rooms, setRooms] = useState<ChatRoomResponse[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedRoom, setSelectedRoom] = useState<ChatRoomResponse | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [replyValue, setReplyValue] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
 
   const filteredRooms = useMemo(
     () =>
       rooms.filter((room) =>
-        `${room.name} ${room.createdBy}`.toLowerCase().includes(searchTerm.toLowerCase())
+        `${room.name || ""} ${room.customerName || ""} ${room.activeStaffName || ""} ${room.id}`
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
       ),
     [rooms, searchTerm]
   );
 
-  const openRooms = rooms.filter((room) => room.status === "open").length;
+  const openRooms = rooms.filter((room) => room.status !== "Closed").length;
   const closedRooms = rooms.length - openRooms;
 
-  const handleCreateRoom = () => {
-    const trimmed = newRoomName.trim();
-    if (!trimmed) {
-      toast.error("Vui long nhap ten phong chat");
-      return;
+  const fetchActiveRooms = async () => {
+    setIsLoading(true);
+    try {
+      const data = await chatRoomService.getActiveRooms();
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn("get active rooms failed", err);
+      toast.error("Khong the tai danh sach phong chat");
+      setRooms([]);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    const nextRoom: ChatRoom = {
-      id: `room-${Date.now()}`,
-      name: trimmed,
-      createdBy: "admin",
-      participants: 1,
-      lastMessageAt: new Date().toLocaleString("vi-VN"),
-      status: "open",
+  useEffect(() => {
+    void fetchActiveRooms();
+  }, []);
+
+  useEffect(() => {
+    let offs: Array<() => void> = [];
+    let cancelled = false;
+
+    const setup = async () => {
+      try {
+        offs.push(
+          chatHub.on("NewRoomAvailable", (room) => {
+            if (cancelled) return;
+            setRooms((prev) => {
+              if (prev.some((r) => r.id === room.id)) return prev;
+              return [room, ...prev];
+            });
+            toast.info("Co phong chat moi");
+          })
+        );
+
+        offs.push(
+          chatHub.on("RoomJoined", (room) => {
+            if (cancelled) return;
+            setSelectedRoom(room);
+            setIsDetailOpen(true);
+            setIsJoining(false);
+          })
+        );
+
+        offs.push(
+          chatHub.on("ReceiveMessage", (msg: ChatMessageResponse) => {
+            if (cancelled) return;
+            setSelectedRoom((prev) => {
+              if (!prev || prev.id !== msg.roomId) return prev;
+              const nextMessages = [...(prev.messages || []), msg];
+              return { ...prev, messages: nextMessages };
+            });
+          })
+        );
+
+        offs.push(
+          chatHub.on("AIStatusChanged", (data) => {
+            if (cancelled) return;
+            setSelectedRoom((prev) => {
+              if (!prev || prev.id !== data.roomId) return prev;
+              return { ...prev, isAIEnabled: data.isAIEnabled };
+            });
+          })
+        );
+
+        offs.push(
+          chatHub.on("RoomClosed", (data) => {
+            if (cancelled) return;
+            setRooms((prev) => prev.filter((r) => r.id !== data.roomId));
+            setSelectedRoom((prev) => {
+              if (!prev || prev.id !== data.roomId) return prev;
+              return { ...prev, status: "Closed" };
+            });
+            toast.success("Da dong phong chat");
+          })
+        );
+
+        offs.push(
+          chatHub.on("Error", (message) => {
+            if (cancelled) return;
+            toast.error(message || "Chat hub error");
+            setIsJoining(false);
+          })
+        );
+
+        await chatHub.start();
+      } catch (err) {
+        console.warn("hub start failed", err);
+      }
     };
-    setRooms((prev) => [nextRoom, ...prev]);
-    setNewRoomName("");
-    setIsCreateOpen(false);
-    toast.success("Da tao phong chat moi");
+
+    setup();
+
+    return () => {
+      cancelled = true;
+      offs.forEach((off) => off());
+    };
+  }, []);
+
+  const handleJoinRoom = async (roomId: string) => {
+    setIsJoining(true);
+    try {
+      await chatHub.staffJoinRoom(roomId);
+    } catch (err) {
+      console.warn("staff join failed", err);
+      toast.error("Khong the nhan phong");
+      setIsJoining(false);
+    }
   };
 
-  const handleToggleStatus = (id: string) => {
-    setRooms((prev) =>
-      prev.map((room) =>
-        room.id === id
-          ? { ...room, status: room.status === "open" ? "closed" : "open" }
-          : room
-      )
-    );
-    toast.success("Da cap nhat trang thai phong");
+  const handleToggleAi = async () => {
+    if (!selectedRoom) return;
+    try {
+      await chatHub.toggleAi(selectedRoom.id, !selectedRoom.isAIEnabled);
+    } catch (err) {
+      console.warn("toggle ai failed", err);
+      toast.error("Khong the doi trang thai AI");
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setRooms((prev) => prev.filter((room) => room.id !== id));
-    toast.success("Da xoa phong chat");
+  const handleCloseRoom = async () => {
+    if (!selectedRoom) return;
+    try {
+      await chatHub.closeRoom(selectedRoom.id);
+    } catch (err) {
+      console.warn("close room failed", err);
+      toast.error("Khong the dong phong");
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedRoom) return;
+    const trimmed = replyValue.trim();
+    if (!trimmed) return;
+    if (selectedRoom.status === "Closed") return;
+
+    setReplyValue("");
+    try {
+      await chatHub.staffSendMessage(selectedRoom.id, trimmed);
+    } catch (err) {
+      console.warn("staff send failed", err);
+      toast.error("Khong the gui tin nhan");
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Quan ly phong chat</h1>
-        <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Tao phong
+        <Button variant="outline" onClick={() => void fetchActiveRooms()} disabled={isLoading}>
+          Tai lai
         </Button>
       </div>
 
@@ -160,82 +249,172 @@ const AdminChatRooms = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ten phong</TableHead>
-                <TableHead>Nguoi tao</TableHead>
-                <TableHead>Thanh vien</TableHead>
-                <TableHead>Tin nhan gan nhat</TableHead>
-                <TableHead>Trang thai</TableHead>
-                <TableHead className="text-right">Thao tac</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRooms.map((room) => (
-                <TableRow key={room.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-primary" />
-                      {room.name}
-                    </div>
-                  </TableCell>
-                  <TableCell>{room.createdBy}</TableCell>
-                  <TableCell>{room.participants}</TableCell>
-                  <TableCell>{room.lastMessageAt}</TableCell>
-                  <TableCell>
-                    <Badge variant={room.status === "open" ? "default" : "secondary"}>
-                      {room.status === "open" ? "Dang mo" : "Da dong"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => handleToggleStatus(room.id)}>
-                        {room.status === "open" ? "Dong phong" : "Mo lai"}
-                      </Button>
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Phong</TableHead>
+                  <TableHead>Khach hang</TableHead>
+                  <TableHead>Staff</TableHead>
+                  <TableHead>Trang thai</TableHead>
+                  <TableHead>Tao luc</TableHead>
+                  <TableHead className="text-right">Thao tac</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRooms.map((room) => (
+                  <TableRow key={room.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <div className="flex flex-col">
+                          <span>{room.name || `Room ${room.id.slice(0, 8)}...`}</span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {room.id}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{room.customerName || room.customerId?.slice(0, 8)}</TableCell>
+                    <TableCell>{room.activeStaffName || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={room.status === "Waiting" ? "default" : "secondary"}>
+                        {roomStatusLabel(room.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDateTime(room.createdAt)}</TableCell>
+                    <TableCell className="text-right">
                       <Button
                         variant="outline"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(room.id)}
+                        onClick={() => void handleJoinRoom(room.id)}
+                        disabled={isJoining}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        Nhan phong
                       </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredRooms.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    Khong tim thay phong chat
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredRooms.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                      Khong tim thay phong chat
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Tao phong chat moi</DialogTitle>
+            <DialogTitle>
+              {selectedRoom?.name || "Chi tiet phong chat"}{" "}
+              <span className="text-xs text-muted-foreground font-mono">
+                {selectedRoom?.id}
+              </span>
+            </DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="Nhap ten phong chat..."
-            value={newRoomName}
-            onChange={(e) => setNewRoomName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreateRoom();
-            }}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              Huy
-            </Button>
-            <Button onClick={handleCreateRoom}>Tao phong</Button>
-          </DialogFooter>
+
+          {selectedRoom && (
+            <div className="grid gap-4 md:grid-cols-[1fr,240px]">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={selectedRoom.status === "Waiting" ? "default" : "secondary"}>
+                      {roomStatusLabel(selectedRoom.status)}
+                    </Badge>
+                    <Badge variant={selectedRoom.isAIEnabled ? "default" : "secondary"}>
+                      AI: {selectedRoom.isAIEnabled ? "ON" : "OFF"}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => void handleToggleAi()}>
+                      Toggle AI
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => void handleCloseRoom()}
+                      disabled={selectedRoom.status === "Closed"}
+                    >
+                      Dong phong
+                    </Button>
+                  </div>
+                </div>
+
+                <ScrollArea className="h-[420px] rounded-lg border border-border p-3">
+                  <div className="space-y-2">
+                    {(selectedRoom.messages || []).map((m) => (
+                      <div key={m.id} className="rounded-lg bg-muted/40 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">
+                            {m.userType === "AI"
+                              ? "AI Assistant"
+                              : m.senderName || m.userType}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</p>
+                        </div>
+                        <p className="text-sm mt-1 whitespace-pre-wrap">{m.content}</p>
+                      </div>
+                    ))}
+                    {(selectedRoom.messages || []).length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-10">
+                        Chua co tin nhan
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSendReply();
+                  }}
+                >
+                  <Input
+                    placeholder="Nhap tin nhan tra loi..."
+                    value={replyValue}
+                    onChange={(e) => setReplyValue(e.target.value)}
+                    disabled={selectedRoom.status === "Closed"}
+                  />
+                  <Button size="icon" type="submit" disabled={selectedRoom.status === "Closed"}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Thong tin</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Khach</span>
+                    <span className="text-right">{selectedRoom.customerName || selectedRoom.customerId}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Staff</span>
+                    <span className="text-right">{selectedRoom.activeStaffName || "—"}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Tao luc</span>
+                    <span className="text-right">{formatDateTime(selectedRoom.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Dong luc</span>
+                    <span className="text-right">{formatDateTime(selectedRoom.closedAt)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
