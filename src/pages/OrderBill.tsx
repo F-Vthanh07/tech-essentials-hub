@@ -1,17 +1,109 @@
-import { FileText, Printer } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Printer, Loader2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getStoredOrderById } from "@/lib/orderStorage";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(price);
 
+const parseShippingDetail = (raw?: string) => {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+};
+
 const OrderBill = () => {
   const { id = "" } = useParams();
-  const order = getStoredOrderById(id);
+  const { user } = useAuth();
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      setLoading(true);
+      const localOrder = getStoredOrderById(id);
+      if (localOrder) {
+        setOrder(localOrder);
+        setLoading(false);
+        return;
+      }
+
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { orderService } = await import("@/services/OrderService");
+        const { variantApi } = await import("@/services/ProductService");
+        
+        const apiOrder: any = await orderService.getById(id);
+        if (apiOrder) {
+          const allVariants = await variantApi.getAll().catch(() => []);
+          const variantsMap: Record<string, any> = {};
+          allVariants.forEach((v: any) => { variantsMap[v.id] = v; });
+
+          const sd = parseShippingDetail(apiOrder.shippingDetail);
+          const mappedOrder = {
+            id: apiOrder.id,
+            orderNumber: apiOrder.id.slice(0, 8),
+            status: apiOrder.status,
+            createdAt: apiOrder.createdAt || apiOrder.orderDate || new Date().toISOString(),
+            paymentMethod: "Thanh toán online",
+            shippingAddress: {
+              fullName: sd.ReceiverName || user.name || "N/A",
+              phone: sd.ReceiverPhone || user.phone || "N/A",
+              address: sd.StreetAddress || "N/A",
+              province: sd.ProvinceName || "",
+              district: sd.DistrictName || "",
+              ward: sd.WardName || "",
+            },
+            items: (apiOrder.orderItems || apiOrder.items || []).map((item: any) => {
+              const variant = variantsMap[item.variantId];
+              return {
+                product: {
+                  id: item.variantId,
+                  name: variant ? `${variant.productName || variant.name} - Phân loại: ${variant.name}` : (item.variantName || `Sản phẩm #${item.variantId?.slice(0, 8)}`),
+                },
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+              };
+            }),
+            total: apiOrder.totalAmount || 0,
+            subtotal: apiOrder.totalAmount || 0,
+            shippingFee: 0,
+            discount: 0,
+          };
+          setOrder(mappedOrder);
+        }
+      } catch (err) {
+        console.warn("Bill fetch error", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrder();
+  }, [id, user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <main className="flex-1 container py-32 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!order) {
     return (

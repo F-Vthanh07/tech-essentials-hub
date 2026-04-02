@@ -492,6 +492,15 @@ const UserCustomOrdersSection = ({ accountId }: { accountId: string }) => {
 // Helpers chung (Giữ nguyên hoàn toàn)
 // ─────────────────────────────────────────────
 
+const parseShippingDetail = (raw?: string) => {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+};
+
 const normalizeStatus = (status?: string): Order["status"] => {
   const value = (status || "pending").toLowerCase();
   if (
@@ -655,11 +664,18 @@ const OrderCard = ({
                 {order.items.length} sản phẩm
               </p>
             </div>
-            <Button variant="ghost" size="icon">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+            >
               {isExpanded ? (
-                <ChevronUp className="w-5 h-5" />
+                <>Đóng chi tiết <ChevronUp className="ml-1 w-4 h-4" /></>
               ) : (
-                <ChevronDown className="w-5 h-5" />
+                <>Xem order detail <ChevronDown className="ml-1 w-4 h-4" /></>
               )}
             </Button>
           </div>
@@ -770,13 +786,6 @@ const OrderCard = ({
                   Ngày giao dự kiến: <strong>{order.deliveryDate}</strong>
                 </span>
               </div>
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>
-                  Khung giờ: <strong>{order.deliveryTime}</strong>
-                </span>
-              </div>
               {order.trackingNumber && (
                 <>
                   <Separator orientation="vertical" className="h-4" />
@@ -816,6 +825,22 @@ const OrderTracking = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [orders, setOrders] = useState<Order[]>([]);
+  const [variantsMap, setVariantsMap] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const fetchVariants = async () => {
+      try {
+        const { variantApi } = await import("@/services/ProductService");
+        const allVariants = await variantApi.getAll();
+        const map: Record<string, any> = {};
+        allVariants.forEach(v => { map[v.id] = v; });
+        setVariantsMap(map);
+      } catch (err) {
+        console.warn('Failed to fetch variants', err);
+      }
+    };
+    fetchVariants();
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -859,32 +884,35 @@ const OrderTracking = () => {
             createdAt: o.createdAt || o.orderDate || new Date().toISOString(),
             items: (
               (o.orderItems && o.orderItems.length > 0 ? o.orderItems : o.items) || []
-            ).map((item: any) => ({
-              product: {
-                id: item.variantId,
-                name:
-                  item.variantName ||
-                  `Sản phẩm #${item.variantId?.slice(0, 8)}`,
-                image:
-                  "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop",
+            ).map((item: any) => {
+              const variant = variantsMap[item.variantId];
+              return {
+                product: {
+                  id: item.variantId,
+                  name: variant ? `${variant.productName || variant.name} - Phân loại: ${variant.name}` : (item.variantName || `Sản phẩm #${item.variantId?.slice(0, 8)}`),
+                  image: variant?.imageUrl || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop",
+                  price: item.price || 0,
+                },
+                quantity: item.quantity || 1,
                 price: item.price || 0,
-              },
-              quantity: item.quantity || 1,
-              price: item.price || 0,
-            })),
+              };
+            }),
             total: o.totalAmount || 0,
             subtotal: o.totalAmount || 0,
             shippingFee: 0,
             discount: 0,
             paymentMethod: "Thanh toán online",
-            shippingAddress: {
-              fullName: user.name || "N/A",
-              phone: user.phone || "N/A",
-              address: "N/A",
-              district: "",
-              province: "",
-              ward: "",
-            },
+            shippingAddress: (() => {
+              const sd = parseShippingDetail(o.shippingDetail);
+              return {
+                fullName: sd.ReceiverName || user.name || "N/A",
+                phone: sd.ReceiverPhone || user.phone || "N/A",
+                address: sd.StreetAddress || "N/A",
+                province: sd.ProvinceName || "",
+                district: sd.DistrictName || "",
+                ward: sd.WardName || "",
+              };
+            })(),
             deliveryDate: "Đang xử lý",
             deliveryTime: "N/A",
           }));
@@ -911,24 +939,15 @@ const OrderTracking = () => {
       }
     };
     fetchOrders();
-  }, [user]);
+  }, [user, variantsMap]);
 
   const filteredOrders = orders.filter((order) => {
     const normalizedStatus = normalizeStatus((order as any).status);
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.trackingNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "pending")
-      return (
-        matchesSearch &&
-        (normalizedStatus === "pending" || normalizedStatus === "confirmed")
-      );
-    if (activeTab === "shipping")
-      return matchesSearch && normalizedStatus === "shipping";
-    if (activeTab === "delivered")
-      return matchesSearch && normalizedStatus === "delivered";
-    return matchesSearch;
+    
+    return matchesSearch && normalizedStatus === "confirmed";
   });
 
   return (
@@ -965,14 +984,7 @@ const OrderTracking = () => {
                 />
               </div>
 
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="all">Tất cả</TabsTrigger>
-                  <TabsTrigger value="pending">Chờ xử lý</TabsTrigger>
-                  <TabsTrigger value="shipping">Đang giao</TabsTrigger>
-                  <TabsTrigger value="delivered">Đã giao</TabsTrigger>
-                </TabsList>
-              </Tabs>
+
 
               <div className="space-y-4">
                 {filteredOrders.length === 0 ? (
@@ -1007,26 +1019,14 @@ const OrderTracking = () => {
               </div>
 
               {filteredOrders.length > 0 && (
-                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="p-4 text-center">
-                    <p className="text-2xl font-bold text-primary">{orders.length}</p>
+                    <p className="text-2xl font-bold text-primary">{filteredOrders.length}</p>
                     <p className="text-sm text-muted-foreground">Tổng đơn hàng</p>
                   </Card>
                   <Card className="p-4 text-center">
-                    <p className="text-2xl font-bold text-blue-600">
-                      {orders.filter((o) => o.status === "shipping").length}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Đang giao</p>
-                  </Card>
-                  <Card className="p-4 text-center">
-                    <p className="text-2xl font-bold text-green-600">
-                      {orders.filter((o) => o.status === "delivered").length}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Đã giao</p>
-                  </Card>
-                  <Card className="p-4 text-center">
                     <p className="text-2xl font-bold">
-                      {formatPrice(orders.reduce((sum, o) => sum + o.total, 0))}
+                      {formatPrice(filteredOrders.reduce((sum, o) => sum + o.total, 0))}
                     </p>
                     <p className="text-sm text-muted-foreground">Tổng chi tiêu</p>
                   </Card>

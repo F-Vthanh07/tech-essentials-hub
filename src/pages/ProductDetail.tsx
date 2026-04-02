@@ -4,8 +4,6 @@ import {
   ChevronRight,
   Star,
   ShoppingCart,
-  Heart,
-  Share2,
   Truck,
   Shield,
   RotateCcw,
@@ -70,7 +68,6 @@ const ProductDetail = () => {
   const { getPromotionsByProductId, getPromotionByProductId } = usePromotions();
   const { user, token } = useAuth();
   const [quantity, setQuantity] = useState(1);
-  const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
   const [product, setProduct] = useState<Product | null | undefined>(undefined);
   const [allProducts, setAllProducts] = useState<Product[]>(products);
@@ -399,21 +396,6 @@ const ProductDetail = () => {
     }
   };
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: product.name,
-        url: globalThis.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(globalThis.location.href);
-      toast({
-        title: "Đã sao chép liên kết",
-        description: "Liên kết sản phẩm đã được sao chép vào clipboard",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -671,25 +653,6 @@ const ProductDetail = () => {
                   </Button>
                 </div>
               )}
-
-              {/* Actions */}
-              <div className="flex gap-4 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsWishlisted(!isWishlisted)}
-                  className={isWishlisted ? "text-primary border-primary" : ""}
-                >
-                  <Heart
-                    className={`w-4 h-4 mr-2 ${isWishlisted ? "fill-primary" : ""
-                      }`}
-                  />
-                  {isWishlisted ? "Đã yêu thích" : "Yêu thích"}
-                </Button>
-                <Button variant="outline" onClick={handleShare}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Chia sẻ
-                </Button>
-              </div>
 
               {/* Benefits */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-border">

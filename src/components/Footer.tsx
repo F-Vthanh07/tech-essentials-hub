@@ -1,34 +1,9 @@
 import { MapPin, Phone, Mail, Clock, Facebook, Instagram, Youtube } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 
 const Footer = () => {
   return (
     <footer className="bg-foreground text-background">
-      {/* Newsletter */}
-      <div className="border-b border-background/10">
-        <div className="container py-10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-              <h3 className="text-xl font-bold mb-1">Đăng ký nhận tin</h3>
-              <p className="text-background/70">
-                Nhận thông tin khuyến mãi & sản phẩm mới
-              </p>
-            </div>
-            <div className="flex w-full md:w-auto gap-2">
-              <Input
-                type="email"
-                placeholder="Email của bạn"
-                className="bg-background/10 border-background/20 text-background placeholder:text-background/50 w-full md:w-64"
-              />
-              <Button variant="brand" className="shrink-0">
-                Đăng ký
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main footer */}
       <div className="container py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
