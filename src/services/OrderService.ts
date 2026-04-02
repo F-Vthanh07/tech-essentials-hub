@@ -23,6 +23,7 @@ export interface ApiOrder {
   totalAmount?: number;
   status?: string;
   orderDate?: string;
+  shippingDetail?: string;
   createdAt?: string;
   updatedAt?: string;
 }

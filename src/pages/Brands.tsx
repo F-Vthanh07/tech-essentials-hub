@@ -39,21 +39,21 @@ const Brands = () => {
   // Build brand data from API or mock products
   const brandData = apiBrands.length > 0
     ? apiBrands.map(brand => ({
-        id: brand.id,
-        name: brand.name || '',
-        productCount: allProducts.filter(p => p.brand === brand.name).length,
-        logo: brand.logoUrl || brand.logo || `/placeholder.svg`,
-        description: brand.description || '',
-      }))
+      id: brand.id,
+      name: brand.name || '',
+      productCount: allProducts.filter(p => p.brand === brand.name).length,
+      logo: brand.logoUrl || brand.logo || `/placeholder.svg`,
+      description: brand.description || '',
+    }))
     : [...new Set(mockProducts.map(p => p.brand))].filter(Boolean).map(brand => ({
-        id: brand,
-        name: brand,
-        productCount: mockProducts.filter(p => p.brand === brand).length,
-        logo: `/placeholder.svg`,
-        description: '',
-      }));
+      id: brand,
+      name: brand,
+      productCount: mockProducts.filter(p => p.brand === brand).length,
+      logo: `/placeholder.svg`,
+      description: '',
+    }));
 
-  const filteredBrands = brandData.filter(brand => 
+  const filteredBrands = brandData.filter(brand =>
     brand.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -63,16 +63,16 @@ const Brands = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main>
         <section className="relative overflow-hidden border-b border-border bg-gradient-to-b from-secondary/60 to-background">
           <div className="absolute inset-0 opacity-30 [background:radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.35),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(59,130,246,0.25),transparent_40%)]" />
           <div className="container relative py-10 md:py-14">
             <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-primary">Trang chủ</Link>
-          <span>/</span>
-          <span className="text-foreground">Thương hiệu</span>
-        </div>
+              <Link to="/" className="hover:text-primary">Trang chủ</Link>
+              <span>/</span>
+              <span className="text-foreground">Thương hiệu</span>
+            </div>
 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
               <div className="max-w-2xl">
@@ -93,14 +93,14 @@ const Brands = () => {
               </div>
 
               <div className="relative w-full lg:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Tìm thương hiệu bạn quan tâm..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12"
-            />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Tìm thương hiệu bạn quan tâm..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-12"
+                />
               </div>
             </div>
           </div>
@@ -119,8 +119,8 @@ const Brands = () => {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {featuredBrands.map((brand) => (
-                  <Link 
-                    key={brand.id} 
+                  <Link
+                    key={brand.id}
                     to={`/?brand=${brand.name.toLowerCase()}`}
                     className="block"
                   >
@@ -151,8 +151,8 @@ const Brands = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredBrands.map((brand) => (
-                  <Link 
-                    key={brand.id} 
+                  <Link
+                    key={brand.id}
                     to={`/?brand=${brand.name.toLowerCase()}`}
                     className="group block"
                   >
@@ -171,7 +171,7 @@ const Brands = () => {
                         </p>
                         <div className="mt-4 flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">
-                          {brand.productCount} sản phẩm
+                            {brand.productCount} sản phẩm
                           </span>
                           <span className="inline-flex items-center gap-1 text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                             Xem ngay
@@ -183,7 +183,7 @@ const Brands = () => {
                   </Link>
                 ))}
               </div>
-              
+
               {filteredBrands.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   Không tìm thấy thương hiệu phù hợp

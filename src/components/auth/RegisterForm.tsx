@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Gift, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 interface RegisterFormProps {
   onRegister: (data: { name: string; email: string; phone: string; password: string }) => Promise<void>;
@@ -24,10 +24,6 @@ const RegisterForm = ({ onRegister, isLoading }: RegisterFormProps) => {
 
   return (
     <>
-      <div className="bg-primary/10 rounded-lg p-3 flex items-center gap-2">
-        <Gift className="h-5 w-5 text-primary" />
-        <span className="text-sm">Đăng ký ngay để nhận <strong>100 điểm</strong> thưởng!</span>
-      </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="register-name">Họ và tên *</Label>

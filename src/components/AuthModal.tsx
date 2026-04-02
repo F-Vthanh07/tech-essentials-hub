@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Gift, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 interface AuthModalProps {
   open: boolean;
@@ -72,7 +72,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     setIsLoading(false);
 
     if (success) {
-      toast.success('Đăng ký thành công! Bạn nhận được 100 điểm chào mừng 🎉');
+      toast.success('Đăng ký thành công!');
       onOpenChange(false);
       resetForms();
     } else {
@@ -146,11 +146,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
           </TabsContent>
 
           <TabsContent value="register" className="space-y-4 pt-4">
-            <div className="bg-primary/10 rounded-lg p-3 flex items-center gap-2">
-              <Gift className="h-5 w-5 text-primary" />
-              <span className="text-sm">Đăng ký ngay để nhận <strong>100 điểm</strong> thưởng!</span>
-            </div>
-
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="register-name">Họ và tên *</Label>

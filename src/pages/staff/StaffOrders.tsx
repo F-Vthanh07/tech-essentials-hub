@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Eye, Trash2, Loader2 } from "lucide-react";
+import { Search, Eye, Trash2, Loader2, MapPin } from "lucide-react";
 import { orderService } from "@/services/OrderService";
 import { variantApi } from "@/services/ProductService";
 import { ApiProductVariant } from "@/types/product";
@@ -45,6 +45,24 @@ const normalizeStatus = (status?: string): Order['status'] => {
     return value;
   }
   return 'pending';
+};
+
+interface ParsedShippingDetail {
+  ProvinceName?: string;
+  DistrictName?: string;
+  WardName?: string;
+  StreetAddress?: string;
+  ReceiverName?: string;
+  ReceiverPhone?: string;
+}
+
+const parseShippingDetail = (raw?: string): ParsedShippingDetail => {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 };
 
 const StaffOrders = () => {
@@ -107,14 +125,17 @@ const StaffOrders = () => {
         shippingFee: 0,
         discount: 0,
         paymentMethod: 'Online',
-        shippingAddress: {
-          fullName: o.accountId?.slice(0, 8) || 'N/A',
-          phone: 'N/A',
-          address: 'N/A',
-          district: '',
-          province: '',
-          ward: '',
-        },
+        shippingAddress: (() => {
+          const sd = parseShippingDetail(o.shippingDetail);
+          return {
+            fullName: sd.ReceiverName || 'N/A',
+            phone: sd.ReceiverPhone || 'N/A',
+            address: sd.StreetAddress || 'N/A',
+            province: sd.ProvinceName || '',
+            district: sd.DistrictName || '',
+            ward: sd.WardName || '',
+          };
+        })(),
         deliveryDate: 'N/A',
         deliveryTime: 'N/A',
       }));
@@ -204,6 +225,7 @@ const StaffOrders = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã đơn</TableHead>
+                  <TableHead>Người nhận</TableHead>
                   <TableHead>Ngày đặt</TableHead>
                   <TableHead>Tổng tiền</TableHead>
                   <TableHead>Trạng thái</TableHead>
@@ -214,6 +236,12 @@ const StaffOrders = () => {
                 {filteredOrders.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <p className="font-medium">{order.shippingAddress.fullName}</p>
+                        <p className="text-muted-foreground text-xs">{order.shippingAddress.phone}</p>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleDateString('vi-VN')}
                     </TableCell>
@@ -246,7 +274,7 @@ const StaffOrders = () => {
                 ))}
                 {filteredOrders.length === 0 && !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Không tìm thấy đơn hàng
                     </TableCell>
                   </TableRow>
@@ -293,6 +321,29 @@ const StaffOrders = () => {
                 <div className="flex justify-between text-lg font-bold pt-2 border-t">
                   <span>Tổng cộng</span>
                   <span className="text-primary">{selectedOrder.total.toLocaleString('vi-VN')}đ</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Thông tin giao hàng
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm bg-muted/50 rounded-lg p-4">
+                  <div>
+                    <span className="text-muted-foreground">Người nhận: </span>
+                    <span className="font-medium">{selectedOrder.shippingAddress.fullName}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">SĐT: </span>
+                    <span className="font-medium">{selectedOrder.shippingAddress.phone}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Địa chỉ: </span>
+                    <span className="font-medium">
+                      {[selectedOrder.shippingAddress.address, selectedOrder.shippingAddress.ward, selectedOrder.shippingAddress.district, selectedOrder.shippingAddress.province].filter(Boolean).join(', ')}
+                    </span>
+                  </div>
                 </div>
               </div>
 
