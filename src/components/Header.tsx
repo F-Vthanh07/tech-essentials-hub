@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Search, ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut, Sun, Moon } from "lucide-react";
+import { ShoppingCart, User as UserIcon, Menu, X, ChevronDown, LogOut, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -22,7 +22,6 @@ const Header = () => {
   const { getCartCount, loadCartFromBackend } = useCart();
   const cartCount = getCartCount();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
   const { user, logout } = useAuth();
@@ -88,12 +87,7 @@ const Header = () => {
     toast.success('Đã đăng xuất');
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
+
 
   const handleOpenCart = async () => {
     if (user) {
@@ -132,31 +126,11 @@ const Header = () => {
             <span className="text-xl font-bold hidden sm:block">TechStore</span>
           </Link>
 
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="flex-1 max-w-xl hidden md:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 h-11 bg-secondary border-0 rounded-full focus-visible:ring-primary"
-              />
-            </div>
-          </form>
-
           {/* Actions */}
           <div className="flex items-center gap-1">
             {/* Dark mode toggle */}
             <Button variant="ghost" size="icon" onClick={toggleDarkMode} title={isDark ? "Chế độ sáng" : "Chế độ tối"}>
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </Button>
-
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => {
-              setIsMenuOpen(true);
-            }}>
-              <Search className="w-5 h-5" />
             </Button>
             
             <Button variant="ghost" size="icon" className="relative" onClick={handleOpenCart}>
@@ -258,16 +232,6 @@ const Header = () => {
       {isMenuOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 bg-card border-b border-border animate-slide-in-right">
           <div className="container py-4">
-            <form onSubmit={(e) => { handleSearch(e); setIsMenuOpen(false); }} className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Tìm kiếm..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 h-11 bg-secondary border-0 rounded-full"
-              />
-            </form>
             <ul className="space-y-1">
               {categories.map((cat) => (
                 <li key={cat.id}>
